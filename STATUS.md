@@ -489,19 +489,19 @@ from before this date, that history no longer exists.
   V0.2 stretch item, not started.
 - PROFINET/S7 traffic detection implemented but not yet confirmed
   against a real device (see Verified section above).
-- No authentication on the web UI or API. Fine for now (LAN-only), but
-  a real blocker given the Settings page can change Wi-Fi credentials
-  and the fallback AP password, eth0 mode changes can affect routing,
-  and packet captures/TCP tests can now be triggered by anyone on the
-  LAN (or, notably, anyone already connected to the fallback AP
-  itself) over an unauthenticated API.
+- No authentication on the web UI or API -- **deliberate, not an
+  oversight**: the maintainer's call (2026-08-17) is that this stays
+  a deliberately primitive field tool (LAN-only, no auth), not a
+  hardened multi-user product. Revisit only if the threat model
+  actually changes (e.g. LanPi starts getting exposed somewhere less
+  trusted than a LAN/fallback-AP client).
 - No tests.
 
 ## Next steps
 
 - V0.2 (as originally scoped) is feature-complete. Remaining: the
-  passive-device-discovery stretch item, or closing the auth gap
-  above -- whichever the maintainer wants first.
+  passive-device-discovery stretch item, whenever the maintainer
+  wants to pick it up.
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
 - Re-verify the captive-portal auto-open flow with a phone.
