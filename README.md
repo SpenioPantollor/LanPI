@@ -6,6 +6,8 @@ The goal of the project is to provide a simple web-based interface for network t
 
 LanPi uses Wi-Fi for management while keeping the physical Ethernet interface dedicated to the network being tested.
 
+It's a DIY, open-source alternative to commercial handheld LAN testers such as Fluke Networks' LinkRunner/LANmeter line, NetAlly's tools, and similar -- link status, neighbor discovery (LLDP/CDP/MNDP), ping/MTR, TCP port and range scanning, and packet capture, on inexpensive hardware you can build and modify yourself. It does not replace certified cable-test/TDR equipment (see the Cable Diagnostics section below) or those tools' compliance-grade certification reports -- it's aimed at everyday field diagnostics, not cable certification.
+
 ## Project Goals
 
 LanPi is intended for field network diagnostics, including standard Ethernet and industrial automation networks.
