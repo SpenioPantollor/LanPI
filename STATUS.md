@@ -369,12 +369,21 @@ from before this date, that history no longer exists.
   apparently handles this itself. Originally a single blocking POST
   (could hang up to `cycles+30`s against an unreachable host with no
   way to cancel -- user-reported); converted to start/status/stop like
-  `ping.py`. Both paths confirmed live: normal completion (real
-  hop data) and mid-run stop (SIGTERM, ~1-2s to actually die, then
-  `{running: false, ok: false, message: "stopped"}` -- distinguished
-  from a real mtr failure via an internal flag, since a killed
-  process's stdout would otherwise just fail JSON parsing and look
-  like a random error).
+  `ping.py`.
+  **Second bug found and fixed, also user-reported** ("have to spam
+  Stop and wait"): mtr forks a per-target `mtr-packet` helper that
+  inherits the stdout/stderr pipe. Signalling only the tracked `mtr`
+  process left `mtr-packet` orphaned (confirmed live via `ps`:
+  reparented to PID 1, still running) and still holding that pipe
+  open, so `communicate()` in the reader thread kept blocking for EOF
+  that only `mtr-packet` exiting would send -- explaining why repeated
+  clicks against an already-dead parent looked like it needed
+  flooding, when really the actual holdout was never being signalled
+  at all. Fixed with `start_new_session=True` (own process group) +
+  `os.killpg` on stop, reaching `mtr` and its children in one shot.
+  Confirmed live: stop now takes **~0.4s** (was 1-2s+, sometimes
+  longer), and `ps` shows zero leftover processes afterward. Normal
+  completion re-verified working after the process-group change too.
 - DHCP lease info: **fully confirmed working** -- `lease_time_seconds`,
   `dhcp_server`, and `domain_name` (null when unset, not an empty
   string) all populated correctly from a real DHCP lease on eth0.
