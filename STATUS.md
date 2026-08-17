@@ -17,9 +17,10 @@ end-to-end including a real iPhone joining the AP**, and have a
 dedicated Settings page. Hardware system stats (CPU/RAM/temp/disk)
 round out the dashboard.
 
-**V0.2 in progress**: MNDP discovery, MTR/traceroute, and richer DHCP
-lease info are done and live-verified. IP scanner, port scanner,
-traffic statistics, and top talkers are still open.
+**V0.2 in progress**: MNDP discovery, MTR/traceroute, richer DHCP
+lease info, and traffic statistics/top talkers (own new Traffic page)
+are done and live-verified. IP scanner and port scanner are still
+open.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -75,11 +76,21 @@ from before this date, that history no longer exists.
     (`(byte[14] & 0x0F) * 4`) before the UDP/MNDP payload starts.
     Parses identity, platform, board, RouterOS version, uptime,
     software ID, interface name, IPv4/MAC address.
-  - `POST /api/tools/mtr` — single-shot MTR report
-    (`backend/tools/mtr.py`) sourced from eth0's address (same
-    default-route reasoning as the TCP port test below). Uses `mtr
-    --report --json` and parses the JSON directly rather than
-    scraping mtr's text table.
+  - `POST /api/tools/mtr/start`, `GET /api/tools/mtr/status`,
+    `POST /api/tools/mtr/stop` — MTR report (`backend/tools/mtr.py`)
+    sourced from eth0's address (same default-route reasoning as the
+    TCP port test below). Uses `mtr --report --json` and parses the
+    JSON directly rather than scraping mtr's text table. Background
+    start/status/stop (mirrors `ping.py`) so a run against an
+    unreachable host can be cancelled instead of blocking; stop kills
+    mtr's whole process group (see Verified section for why just the
+    tracked process wasn't enough).
+  - `GET /api/traffic/stats`, `POST /api/traffic/reset` — passive
+    traffic statistics and top talkers (`backend/capture/traffic_stats.py`),
+    own dedicated (unfiltered) tcpdump parsing every packet's
+    Ethernet/IPv4/ARP headers plus UDP/TCP ports. Served on its own
+    Traffic page (`frontend/traffic.html`/`traffic.js`), not a
+    dashboard card -- too many columns for that.
   - `POST /api/tools/arp-scan` — active host discovery on eth0's local
     network via `arp-scan` (`backend/tools/arp_scan.py`); uses
     `--localnet` when eth0 has an address, or an explicit network
@@ -387,11 +398,33 @@ from before this date, that history no longer exists.
 - DHCP lease info: **fully confirmed working** -- `lease_time_seconds`,
   `dhcp_server`, and `domain_name` (null when unset, not an empty
   string) all populated correctly from a real DHCP lease on eth0.
+- Traffic statistics / top talkers: **fully confirmed working against
+  real traffic** -- packet/byte counts, broadcast/multicast/unicast
+  split, and per-talker breakdown all came out internally consistent
+  (e.g. a talker's `broadcast` count matching its `arp` count for a
+  device only seen doing ARP requests, which are broadcast by
+  definition). Talkers correctly keyed by IP (ARP/IPv4 sources) or
+  fell back to source MAC for L2-only traffic (a MikroTik's MAC showed
+  up sending pure multicast, consistent with MNDP's own broadcast
+  behavior). `reset()` confirmed to actually zero everything and
+  restart accumulation. CPU impact of the unfiltered capture checked
+  live: load average stayed at ~0.09/0.05/0.07 (essentially idle) with
+  four tcpdump processes now running concurrently (LLDP/CDP/MNDP's
+  filtered ones plus this one's unfiltered one) -- but only under the
+  current quiet home-LAN traffic level; not re-verified under heavier
+  or more realistic (e.g. actual industrial PROFINET/S7) traffic.
+  PROFINET/S7 detection itself (EtherType 0x8892 / TCP port 102) is
+  implemented but **not yet confirmed against a real device sending
+  either** -- no such device on hand, same "implementation verified,
+  traffic not observed" situation LLDP/CDP were in before a suitable
+  neighbor was available.
 
 ## Known gaps
 
-- No IP scanner, no port scanner, no traffic statistics, no top
-  talkers. Still planned per `ARCHITECTURE.MD` section 18.
+- No IP scanner, no port scanner. Still planned per `ARCHITECTURE.MD`
+  section 18.
+- PROFINET/S7 traffic detection implemented but not yet confirmed
+  against a real device (see Verified section above).
 - No authentication on the web UI or API. Fine for now (LAN-only), but
   a real blocker given the Settings page can change Wi-Fi credentials
   and the fallback AP password, eth0 mode changes can affect routing,
@@ -402,7 +435,8 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- V0.2 remaining: IP scanner, port scanner, traffic statistics, top
-  talkers -- or closing the auth gap above, whichever the maintainer
-  wants first.
+- V0.2 remaining: IP scanner, port scanner -- or closing the auth gap
+  above, whichever the maintainer wants first.
+- Re-verify PROFINET/S7 detection against a real device when one's
+  available.
 - Re-verify the captive-portal auto-open flow with a phone.

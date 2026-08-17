@@ -814,9 +814,10 @@ coarse long-term summary.
 [x] TCP port test
 [x] Packet capture
 [x] MTR / traceroute
+[x] Traffic analyzer (packet/byte counters, top talkers, own Traffic page)
 [ ] IP scanner
 [ ] Port scanner (range scan -- distinct from the single TCP port test above)
-[ ] Traffic analyzer
-[ ] PROFINET
+[ ] PROFINET (basic detection exists in the traffic analyzer above; full
+    DCP discovery/diagnostics still planned)
 [ ] ModBus TCP
 ```

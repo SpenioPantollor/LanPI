@@ -364,8 +364,8 @@ Extended network diagnostics:
 * [x] MNDP discovery -- confirmed with a real MikroTik neighbor
 * [x] DHCP lease details (server, lease time, domain) alongside the
   existing gateway/DNS -- confirmed live
-* [ ] Traffic statistics
-* [ ] Top talkers
+* [x] Traffic statistics -- confirmed live (own dedicated Traffic page)
+* [x] Top talkers -- ranked by live bytes/s, confirmed live
 * [x] MTR / traceroute -- confirmed live, real multi-hop trace
 * [ ] Improved packet capture filters
 
