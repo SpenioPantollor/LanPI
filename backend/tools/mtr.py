@@ -18,6 +18,7 @@ address to bind.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import signal
 import subprocess
@@ -53,6 +54,24 @@ def _eth0_source_ip() -> str | None:
     mode = eth0_mode.get_mode()
     address = mode.get("address")
     return address.split("/")[0] if address else None
+
+
+def _terminate(process: subprocess.Popen) -> None:
+    """SIGTERM the whole process group, not just the tracked process.
+
+    mtr forks a child mtr-packet helper per probe target that inherits
+    the stdout/stderr pipe -- signalling only the top-level mtr leaves
+    it orphaned (reparented to init) and still holding that pipe open,
+    so communicate() in the reader thread hangs waiting for EOF that
+    never comes. Confirmed live: after SIGTERM to just the parent,
+    `ps` showed mtr-packet reparented to PID 1 and still running.
+    start_new_session=True (see start()) makes the mtr process its own
+    process group leader, so killpg reaches it and every child at once.
+    """
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
 
 
 def _reader_loop(process: subprocess.Popen, host: str) -> None:
@@ -121,10 +140,13 @@ def start(host: str, cycles: int = 10) -> dict:
     with _lock:
         old_process = _state.get("process")
         if old_process is not None and _state["running"]:
-            old_process.send_signal(signal.SIGTERM)
+            _terminate(old_process)
 
         try:
-            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            process = subprocess.Popen(
+                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                start_new_session=True,
+            )
         except OSError as exc:
             return {"ok": False, "message": str(exc)}
 
@@ -162,6 +184,6 @@ def stop() -> dict:
         process = _state.get("process")
         if process is not None and _state["running"]:
             _state["_stopped"] = True
-            process.send_signal(signal.SIGTERM)
+            _terminate(process)
             return {"ok": True, "message": "mtr stopping"}
         return {"ok": True, "message": "no mtr running"}
