@@ -6,6 +6,14 @@ explicit CIDR/range and needs eth0 to have an address to scan from
 (arp_scan can work from Passive mode with an explicit network since
 ARP doesn't need a source address).
 
+Run via sudo, not setcap: confirmed live that nmap's MAC-address
+reporting (the ARP-based phase of -sn that also identifies the vendor)
+only activates when nmap sees geteuid()==0 -- cap_net_raw/cap_net_admin
+via setcap on the binary (the pattern used for tcpdump/arp-scan) still
+runs the scan but silently drops MAC/vendor from the output, unlike
+those two tools. Same _run_privileged-via-sudo pattern already used
+for nmcli elsewhere (wifi.py, eth0_mode.py) instead.
+
 Runs as a background process (mirrors mtr.py/ping.py), with results
 streamed live as nmap reports each host -- not just at the end -- and
 stoppable mid-scan. Learned from the MTR feedback: a scan against a
@@ -27,6 +35,7 @@ import threading
 from backend.network import eth0_mode
 
 _NMAP_CANDIDATES = ["/usr/bin/nmap", "/usr/sbin/nmap", "nmap"]
+_SUDO_CANDIDATES = ["/usr/bin/sudo", "/bin/sudo", "sudo"]
 _REPORT_RE = re.compile(r"^Nmap scan report for (\S+)")
 _MAC_RE = re.compile(r"^MAC Address: ([0-9A-Fa-f:]{17})(?:\s+\((.+)\))?")
 
@@ -41,8 +50,8 @@ _state = {
 }
 
 
-def _find_nmap() -> str | None:
-    for candidate in _NMAP_CANDIDATES:
+def _find_binary(candidates: list[str]) -> str | None:
+    for candidate in candidates:
         found = shutil.which(candidate)
         if found:
             return found
@@ -98,9 +107,12 @@ def start(target: str, interface: str = "eth0") -> dict:
     if target.startswith("-"):
         return {"ok": False, "message": "invalid target"}
 
-    nmap_bin = _find_nmap()
+    nmap_bin = _find_binary(_NMAP_CANDIDATES)
     if not nmap_bin:
         return {"ok": False, "message": "nmap not available"}
+    sudo_bin = _find_binary(_SUDO_CANDIDATES)
+    if not sudo_bin:
+        return {"ok": False, "message": "sudo not available"}
 
     source_ip = _eth0_source_ip()
     if not source_ip:
@@ -110,7 +122,7 @@ def start(target: str, interface: str = "eth0") -> dict:
                        "(Passive mode has no source address to scan from)",
         }
 
-    args = [nmap_bin, "-sn", "-n", "-e", interface, target]
+    args = [sudo_bin, nmap_bin, "-sn", "-n", "-e", interface, target]
 
     with _lock:
         old_process = _state.get("process")

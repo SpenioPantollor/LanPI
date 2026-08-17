@@ -24,7 +24,10 @@ find_bin() {
 }
 sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/bin/tcpdump /usr/sbin/tcpdump tcpdump)"
 sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/sbin/arp-scan /usr/bin/arp-scan arp-scan)"
-sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/bin/nmap /usr/sbin/nmap nmap)"
+# nmap doesn't get its MAC-address/vendor reporting from setcap alone --
+# confirmed live it checks geteuid()==0, not just raw-socket capability
+# (unlike tcpdump/arp-scan above) -- so backend/tools/ip_scanner.py runs
+# it via sudo instead, same _run_privileged pattern as nmcli elsewhere.
 
 # Rule 3 (ARCHITECTURE.MD): never bridge/route between wlan0 (management)
 # and eth0 (TEST PORT), including via the fallback AP's NAT.
