@@ -45,6 +45,11 @@ header {
   gap: 1rem;
 }
 
+nav {
+  display: flex;
+  gap: 1rem;
+}
+
 nav a {
   color: var(--accent);
   text-decoration: none;
@@ -267,6 +272,14 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-size: 0.75rem;
+}
+
+/* Only the first column (Identity) is a label here -- every other
+   column is numeric, unlike MTR's table where Hop/Host are both
+   label-ish. */
+#traffic-talkers-table th:nth-child(2),
+#traffic-talkers-table td:nth-child(2) {
+  text-align: right;
 }
 
 form {

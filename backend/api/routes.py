@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from backend.capture import pcap
+from backend.capture import pcap, traffic_stats
 from backend.discovery import cdp, lldp, mndp
 from backend.network import ap, eth0_mode, link, wifi
 from backend.tools import arp_scan
@@ -248,3 +248,14 @@ def ap_config() -> dict:
 @router.post("/network/ap")
 def ap_set_config(body: ApConfigRequest) -> dict:
     return ap.set_config(body.ssid, body.password)
+
+
+@router.get("/traffic/stats")
+def traffic_stats_get() -> dict:
+    traffic_stats.start_listener(TEST_PORT_INTERFACE)
+    return traffic_stats.get_stats()
+
+
+@router.post("/traffic/reset")
+def traffic_stats_reset() -> dict:
+    return traffic_stats.reset()

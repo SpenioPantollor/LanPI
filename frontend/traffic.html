@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>LanPi Traffic</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Traffic</h1>
+        <p class="subtitle">Passive traffic statistics on eth0</p>
+      </div>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Summary</h2>
+      <p class="card-hint">
+        Every packet seen on eth0 since the listener started (or last
+        reset) &mdash; no BPF filter, so this is a heavier capture than
+        the neighbor discovery listeners.
+      </p>
+      <dl id="traffic-summary">
+        <dt>Collecting for</dt>
+        <dd id="traffic-elapsed">-</dd>
+        <dt>Packets/s</dt>
+        <dd id="traffic-pps">-</dd>
+        <dt>Bytes/s</dt>
+        <dd id="traffic-bps">-</dd>
+        <dt>Total Packets / Bytes</dt>
+        <dd id="traffic-totals">-</dd>
+        <dt>Broadcast / Multicast / Unicast</dt>
+        <dd id="traffic-bmu">-</dd>
+        <dt>ARP / IPv4 / IPv6</dt>
+        <dd id="traffic-l3">-</dd>
+        <dt>DHCP / mDNS / SSDP</dt>
+        <dd id="traffic-app">-</dd>
+        <dt>LLDP / CDP</dt>
+        <dd id="traffic-discovery">-</dd>
+        <dt>PROFINET / S7</dt>
+        <dd id="traffic-industrial">-</dd>
+      </dl>
+      <div class="button-row">
+        <button id="traffic-reset-btn" type="button">Reset</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Top Talkers</h2>
+      <p class="card-hint">
+        Ranked by live bytes/s (last 5s window). Identity is the source
+        IP when the frame has one, otherwise the source MAC (PROFINET
+        real-time, LLDP, CDP are non-routable L2-only protocols).
+        Broadcast/Multicast/protocol columns are cumulative counts.
+      </p>
+      <div class="table-scroll">
+        <table id="traffic-talkers-table" class="data-table">
+          <thead>
+            <tr>
+              <th>Identity</th>
+              <th>Bytes/s</th>
+              <th>Pkts/s</th>
+              <th>Broadcast</th>
+              <th>Multicast</th>
+              <th>ARP</th>
+              <th>PROFINET</th>
+              <th>S7</th>
+              <th>mDNS</th>
+            </tr>
+          </thead>
+          <tbody id="traffic-talkers-body"></tbody>
+        </table>
+      </div>
+      <p id="traffic-talkers-empty" class="card-hint"></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; <span id="footer-year">2026</span> LanPi &mdash; made in Lithuania 🇱🇹</p>
+    <p id="footer-date">-</p>
+  </footer>
+
+  <script src="traffic.js"></script>
+</body>
+</html>
