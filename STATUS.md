@@ -366,7 +366,15 @@ from before this date, that history no longer exists.
   sensible loss/last/avg/best/worst numbers. `mtr-packet` (from
   `mtr-tiny`) worked fully unprivileged as the service's own user, no
   `setcap` needed -- unlike `tcpdump`/`arp-scan`, Debian's package
-  apparently handles this itself.
+  apparently handles this itself. Originally a single blocking POST
+  (could hang up to `cycles+30`s against an unreachable host with no
+  way to cancel -- user-reported); converted to start/status/stop like
+  `ping.py`. Both paths confirmed live: normal completion (real
+  hop data) and mid-run stop (SIGTERM, ~1-2s to actually die, then
+  `{running: false, ok: false, message: "stopped"}` -- distinguished
+  from a real mtr failure via an internal flag, since a killed
+  process's stdout would otherwise just fail JSON parsing and look
+  like a random error).
 - DHCP lease info: **fully confirmed working** -- `lease_time_seconds`,
   `dhcp_server`, and `domain_name` (null when unset, not an empty
   string) all populated correctly from a real DHCP lease on eth0.
