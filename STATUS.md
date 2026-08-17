@@ -17,6 +17,10 @@ end-to-end including a real iPhone joining the AP**, and have a
 dedicated Settings page. Hardware system stats (CPU/RAM/temp/disk)
 round out the dashboard.
 
+**V0.2 in progress**: MNDP discovery, MTR/traceroute, and richer DHCP
+lease info are done and live-verified. IP scanner, port scanner,
+traffic statistics, and top talkers are still open.
+
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
 Earlier commits had, at various points, included real internal IPs
@@ -64,6 +68,18 @@ from before this date, that history no longer exists.
     `00:00:0c`, PID `0x2000`) instead of LLDP's plain EtherType.
     Parses device ID, port ID, platform, software version, native
     VLAN, address.
+  - `GET /api/discovery/mndp` — same architecture again
+    (`backend/discovery/mndp.py`), for MikroTik's MNDP: UDP broadcast
+    (port 5678) rather than an L2 frame, so framing needs the IPv4
+    header's variable length read from the packet itself
+    (`(byte[14] & 0x0F) * 4`) before the UDP/MNDP payload starts.
+    Parses identity, platform, board, RouterOS version, uptime,
+    software ID, interface name, IPv4/MAC address.
+  - `POST /api/tools/mtr` — single-shot MTR report
+    (`backend/tools/mtr.py`) sourced from eth0's address (same
+    default-route reasoning as the TCP port test below). Uses `mtr
+    --report --json` and parses the JSON directly rather than
+    scraping mtr's text table.
   - `POST /api/tools/arp-scan` — active host discovery on eth0's local
     network via `arp-scan` (`backend/tools/arp_scan.py`); uses
     `--localnet` when eth0 has an address, or an explicit network
@@ -328,11 +344,37 @@ from before this date, that history no longer exists.
   response (forces revalidation via the existing ETag/Last-Modified on
   every load; API responses untouched). Confirmed live via response
   headers before/after.
+- Ping card redesigned: dropped the per-reply list, shows live-updating
+  min/avg/max RTT instead (running aggregate while ping is active,
+  overwritten by ping's own authoritative summary line once it's
+  available) plus an explicit lost-packet count next to the loss
+  percentage. Confirmed live on the real Pi against a real host for
+  all three lifecycle paths: natural completion, mid-run (live
+  numbers), and manual stop (SIGINT).
+- MNDP: **fully confirmed working on the first deploy** -- real
+  neighbor came through with every field populated (identity,
+  platform, board, RouterOS version, uptime, software ID, interface
+  name, IPv4/MAC address). `identity`/`version`/`interface_name`
+  independently matched the same device's already-confirmed CDP output
+  exactly, a good cross-check that both parsers are decoding real
+  data correctly rather than coincidentally not crashing. TLV type
+  values and the little-endian uptime field, both taken from public
+  documentation rather than RouterOS source, turned out correct
+  without needing any adjustment.
+- MTR: **fully confirmed working** -- real 8-hop trace from eth0 to
+  8.8.8.8 through the maintainer's actual ISP path, each hop reporting
+  sensible loss/last/avg/best/worst numbers. `mtr-packet` (from
+  `mtr-tiny`) worked fully unprivileged as the service's own user, no
+  `setcap` needed -- unlike `tcpdump`/`arp-scan`, Debian's package
+  apparently handles this itself.
+- DHCP lease info: **fully confirmed working** -- `lease_time_seconds`,
+  `dhcp_server`, and `domain_name` (null when unset, not an empty
+  string) all populated correctly from a real DHCP lease on eth0.
 
 ## Known gaps
 
-- No MNDP discovery, no traceroute, no IP/port scanner, no traffic
-  statistics. Still planned per `ARCHITECTURE.MD` section 18.
+- No IP scanner, no port scanner, no traffic statistics, no top
+  talkers. Still planned per `ARCHITECTURE.MD` section 18.
 - No authentication on the web UI or API. Fine for now (LAN-only), but
   a real blocker given the Settings page can change Wi-Fi credentials
   and the fallback AP password, eth0 mode changes can affect routing,
@@ -343,7 +385,7 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- V0.1 is feature-complete -- next up is deciding V0.2 priorities
-  (MNDP discovery, IP/port scanner, traffic statistics) or closing the
-  auth gap above, whichever the maintainer wants first.
+- V0.2 remaining: IP scanner, port scanner, traffic statistics, top
+  talkers -- or closing the auth gap above, whichever the maintainer
+  wants first.
 - Re-verify the captive-portal auto-open flow with a phone.

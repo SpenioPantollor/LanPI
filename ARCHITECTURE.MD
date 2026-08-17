@@ -808,11 +808,12 @@ coarse long-term summary.
 [x] TEST PORT IP configuration
 [x] LLDP
 [x] CDP
-[ ] MNDP
+[x] MNDP
 [x] Ping
 [x] ARP scan
 [x] TCP port test
 [x] Packet capture
+[x] MTR / traceroute
 [ ] IP scanner
 [ ] Port scanner (range scan -- distinct from the single TCP port test above)
 [ ] Traffic analyzer

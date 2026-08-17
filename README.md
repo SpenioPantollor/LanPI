@@ -361,11 +361,12 @@ Extended network diagnostics:
 
 * [ ] IP scanner (subnet host discovery)
 * [ ] Port scanner (port-range scan of a host)
-* [ ] MNDP discovery
-* [ ] DHCP analysis
+* [x] MNDP discovery -- confirmed with a real MikroTik neighbor
+* [x] DHCP lease details (server, lease time, domain) alongside the
+  existing gateway/DNS -- confirmed live
 * [ ] Traffic statistics
 * [ ] Top talkers
-* [ ] MTR / traceroute
+* [x] MTR / traceroute -- confirmed live, real multi-hop trace
 * [ ] Improved packet capture filters
 
 ### Version 0.3
