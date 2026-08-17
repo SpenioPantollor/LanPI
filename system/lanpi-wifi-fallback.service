@@ -1,0 +1,13 @@
+[Unit]
+Description=LanPi Wi-Fi fallback access point monitor
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/home/lanpi/lanpi/system/lanpi-wifi-fallback.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

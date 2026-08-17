@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>LanPi</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>LanPi</h1>
+        <p class="subtitle">Portable network analyzer</p>
+      </div>
+      <nav><a href="/settings.html">Settings</a></nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Test Port (eth0)</h2>
+      <dl id="eth0">
+        <dt>Link</dt>
+        <dd id="eth0-link">checking...</dd>
+        <dt>Speed</dt>
+        <dd id="eth0-speed">-</dd>
+        <dt>Duplex</dt>
+        <dd id="eth0-duplex">-</dd>
+        <dt>Auto-neg</dt>
+        <dd id="eth0-autoneg">-</dd>
+        <dt>MAC</dt>
+        <dd id="eth0-mac">-</dd>
+        <dt>MTU</dt>
+        <dd id="eth0-mtu">-</dd>
+        <dt>RX</dt>
+        <dd id="eth0-rx">-</dd>
+        <dt>TX</dt>
+        <dd id="eth0-tx">-</dd>
+        <dt>Errors / Dropped</dt>
+        <dd id="eth0-errors">-</dd>
+      </dl>
+
+      <h3>IP Configuration</h3>
+      <dl id="eth0-ip">
+        <dt>Mode</dt>
+        <dd id="eth0-mode">checking...</dd>
+        <dt>Address</dt>
+        <dd id="eth0-address">-</dd>
+        <dt>Gateway</dt>
+        <dd id="eth0-gateway">-</dd>
+      </dl>
+
+      <div class="button-row">
+        <button id="eth0-passive-btn" type="button">Passive</button>
+        <button id="eth0-dhcp-btn" type="button">DHCP</button>
+        <button id="eth0-static-btn" type="button">Static</button>
+      </div>
+
+      <form id="eth0-static-form" hidden>
+        <label for="eth0-static-address">Static IP (CIDR)</label>
+        <input id="eth0-static-address" type="text" placeholder="192.168.20.200/24" autocomplete="off" />
+        <label for="eth0-static-gateway">Gateway (optional)</label>
+        <input id="eth0-static-gateway" type="text" placeholder="192.168.20.1" autocomplete="off" />
+        <label for="eth0-static-dns">DNS (optional)</label>
+        <input id="eth0-static-dns" type="text" placeholder="8.8.8.8" autocomplete="off" />
+        <button type="submit">Apply Static</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Neighbor (LLDP)</h2>
+      <dl id="lldp">
+        <dt>Status</dt>
+        <dd id="lldp-status">checking...</dd>
+        <dt>System</dt>
+        <dd id="lldp-system">-</dd>
+        <dt>Chassis ID</dt>
+        <dd id="lldp-chassis">-</dd>
+        <dt>Port</dt>
+        <dd id="lldp-port">-</dd>
+        <dt>Management IP</dt>
+        <dd id="lldp-mgmt-ip">-</dd>
+        <dt>VLAN</dt>
+        <dd id="lldp-vlan">-</dd>
+        <dt>Last seen</dt>
+        <dd id="lldp-age">-</dd>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>Neighbor (CDP)</h2>
+      <dl id="cdp">
+        <dt>Status</dt>
+        <dd id="cdp-status">checking...</dd>
+        <dt>Device ID</dt>
+        <dd id="cdp-device">-</dd>
+        <dt>Port</dt>
+        <dd id="cdp-port">-</dd>
+        <dt>Platform</dt>
+        <dd id="cdp-platform">-</dd>
+        <dt>Software</dt>
+        <dd id="cdp-software">-</dd>
+        <dt>Native VLAN</dt>
+        <dd id="cdp-vlan">-</dd>
+        <dt>Address</dt>
+        <dd id="cdp-address">-</dd>
+        <dt>Last seen</dt>
+        <dd id="cdp-age">-</dd>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>ARP Scan</h2>
+      <p class="card-hint">
+        Scans eth0's local network. Uses the configured subnet if eth0
+        has an IP (DHCP/Static mode); otherwise specify one manually.
+      </p>
+      <form id="arp-scan-form">
+        <label for="arp-scan-network">Network (optional, e.g. 192.168.20.0/24)</label>
+        <input id="arp-scan-network" type="text" placeholder="blank = use eth0's current network" autocomplete="off" />
+        <button id="arp-scan-btn" type="submit">Scan</button>
+      </form>
+      <ul id="arp-scan-results" class="wifi-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Ping</h2>
+      <form id="ping-form">
+        <label for="ping-host">Host or IP</label>
+        <input id="ping-host" type="text" placeholder="192.168.1.1" autocomplete="off" />
+        <label for="ping-count">Count (blank = continuous)</label>
+        <input id="ping-count" type="number" min="1" max="1000" placeholder="4" autocomplete="off" />
+        <div class="button-row">
+          <button id="ping-start-btn" type="submit">Start</button>
+          <button id="ping-stop-btn" type="button" disabled>Stop</button>
+        </div>
+      </form>
+      <dl id="ping-result">
+        <dt>Status</dt>
+        <dd id="ping-status">-</dd>
+        <dt>Sent / Received</dt>
+        <dd id="ping-counts">-</dd>
+        <dt>Packet Loss</dt>
+        <dd id="ping-loss">-</dd>
+        <dt>Last RTT</dt>
+        <dd id="ping-rtt">-</dd>
+      </dl>
+      <ul id="ping-replies" class="wifi-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>TCP Port Test</h2>
+      <p class="card-hint">
+        Sourced from eth0 &mdash; needs DHCP or Static mode (Passive has
+        no address to test from).
+      </p>
+      <form id="tcp-test-form">
+        <label for="tcp-test-host">Host or IP</label>
+        <input id="tcp-test-host" type="text" placeholder="192.168.1.10" autocomplete="off" />
+        <label for="tcp-test-port">Port</label>
+        <input id="tcp-test-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+        <div class="button-row" id="tcp-test-presets">
+          <button type="button" data-port="102">S7 (102)</button>
+          <button type="button" data-port="502">Modbus (502)</button>
+          <button type="button" data-port="80">HTTP (80)</button>
+          <button type="button" data-port="443">HTTPS (443)</button>
+          <button type="button" data-port="5900">VNC (5900)</button>
+        </div>
+        <button type="submit">Test</button>
+      </form>
+      <dl id="tcp-test-result">
+        <dt>Tested</dt>
+        <dd id="tcp-test-target">-</dd>
+        <dt>Result</dt>
+        <dd id="tcp-test-state">-</dd>
+        <dt>Latency</dt>
+        <dd id="tcp-test-latency">-</dd>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>Packet Capture</h2>
+      <p class="card-hint">
+        Captures raw traffic on eth0 to a .pcap file for later analysis
+        in Wireshark.
+      </p>
+      <form id="capture-form">
+        <label for="capture-duration">Duration, seconds (blank = until stopped)</label>
+        <input id="capture-duration" type="number" min="1" max="3600" placeholder="60" autocomplete="off" />
+        <label for="capture-filter">BPF filter (optional)</label>
+        <input id="capture-filter" type="text" placeholder="tcp port 502" autocomplete="off" />
+        <div class="button-row">
+          <button id="capture-start-btn" type="submit">Start</button>
+          <button id="capture-stop-btn" type="button" disabled>Stop</button>
+        </div>
+      </form>
+      <dl id="capture-result">
+        <dt>Status</dt>
+        <dd id="capture-status">idle</dd>
+        <dt>Elapsed</dt>
+        <dd id="capture-elapsed">-</dd>
+      </dl>
+      <h3>Saved captures</h3>
+      <ul id="capture-list" class="wifi-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Wi-Fi (wlan0)</h2>
+      <dl id="wifi">
+        <dt>Mode</dt>
+        <dd id="wifi-mode">checking...</dd>
+        <dt>SSID</dt>
+        <dd id="wifi-ssid">-</dd>
+        <dt>IP</dt>
+        <dd id="wifi-ip">-</dd>
+      </dl>
+      <p class="card-footnote"><a href="/settings.html">Manage Wi-Fi &amp; fallback AP &rarr;</a></p>
+    </section>
+
+    <section class="card">
+      <h2>System</h2>
+      <dl id="system">
+        <dt>Model</dt>
+        <dd id="system-model">checking...</dd>
+        <dt>CPU Usage</dt>
+        <dd id="system-cpu">-</dd>
+        <dt>CPU Temp</dt>
+        <dd id="system-temp">-</dd>
+        <dt>Load Avg</dt>
+        <dd id="system-load">-</dd>
+        <dt>Memory</dt>
+        <dd id="system-memory">-</dd>
+        <dt>Disk</dt>
+        <dd id="system-disk">-</dd>
+        <dt>System Uptime</dt>
+        <dd id="system-uptime">-</dd>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>Backend</h2>
+      <dl id="status">
+        <dt>Status</dt>
+        <dd id="status-value">checking...</dd>
+        <dt>Hostname</dt>
+        <dd id="hostname-value">-</dd>
+        <dt>Version</dt>
+        <dd id="version-value">-</dd>
+        <dt>Uptime</dt>
+        <dd id="uptime-value">-</dd>
+      </dl>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; <span id="footer-year">2026</span> LanPi &mdash; made in Lithuania 🇱🇹</p>
+    <p id="footer-date">-</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --surface: #171a21;
+  --border: #2a2e37;
+  --text: #e6e8eb;
+  --text-dim: #8b90a0;
+  --accent: #4fd1c5;
+  --gap: clamp(1rem, 4vw, 1.5rem);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* Prevent iOS from bumping the base font size in landscape. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: clamp(15px, 3.8vw, 16px);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+header {
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: calc(var(--gap) + env(safe-area-inset-top)) var(--gap) 1rem;
+}
+
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+nav a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+nav a:hover {
+  text-decoration: underline;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 1.75rem);
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+main {
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: 0 var(--gap) var(--gap);
+  /* Layout is computed in JS (see layoutCards() in app.js/settings.js):
+     each card gets a FIXED column assignment (round-robin by DOM
+     order), so a card's column never changes just because some card's
+     content height changed -- only its vertical offset within that
+     column does. This avoids both CSS Grid's problem (uniform row
+     height leaves big gaps below shorter neighbors) and CSS
+     multi-column's problem (dynamic shortest-column packing reshuffles
+     every card's position on every reflow). */
+  position: relative;
+}
+
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-sizing: border-box;
+}
+
+.card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem 1rem;
+  margin: 0;
+}
+
+dt {
+  color: var(--text-dim);
+}
+
+dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+#status-value {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.link-up {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.link-down {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.card h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+button {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wifi-actions {
+  margin-top: 0.75rem;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.button-row button {
+  flex: 1 1 auto;
+}
+
+.wifi-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.wifi-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.wifi-list li span {
+  overflow-wrap: anywhere;
+}
+
+.wifi-list button {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.wifi-empty {
+  color: var(--text-dim);
+  justify-content: flex-start !important;
+}
+
+.card-hint {
+  margin: 0.75rem 0 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.card-footnote {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+}
+
+.card-footnote a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.card-footnote a:hover {
+  text-decoration: underline;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+/* `form { display: flex }` above outranks the browser's default
+   `[hidden] { display: none }` rule (author styles always beat the
+   UA stylesheet, regardless of selector specificity) -- without this,
+   a hidden form still renders. */
+form[hidden] {
+  display: none;
+}
+
+form label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+form input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+form button {
+  align-self: flex-start;
+}
+
+footer {
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: 1.5rem var(--gap) calc(1.5rem + env(safe-area-inset-bottom));
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+footer p {
+  margin: 0.2rem 0;
+}
+
+/* Very narrow phones (e.g. 320px wide): stack label/value instead of
+   squeezing them onto one row. */
+@media (max-width: 22rem) {
+  dl {
+    grid-template-columns: 1fr;
+    gap: 0.15rem 0;
+  }
+
+  dd {
+    text-align: left;
+    padding-bottom: 0.4rem;
+  }
+}

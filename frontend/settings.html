@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>LanPi Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Settings</h1>
+        <p class="subtitle">Wi-Fi &amp; fallback access point</p>
+      </div>
+      <nav><a href="/">Dashboard</a></nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Wi-Fi Client (wlan0)</h2>
+      <dl id="wifi">
+        <dt>Mode</dt>
+        <dd id="wifi-mode">checking...</dd>
+        <dt>SSID</dt>
+        <dd id="wifi-ssid">-</dd>
+        <dt>IP</dt>
+        <dd id="wifi-ip">-</dd>
+      </dl>
+
+      <div class="wifi-actions">
+        <button id="wifi-scan-btn" type="button">Scan networks</button>
+      </div>
+      <ul id="wifi-networks" class="wifi-list"></ul>
+
+      <h3>Saved networks</h3>
+      <ul id="wifi-saved" class="wifi-list"></ul>
+
+      <h3>Add known network</h3>
+      <p class="card-hint">
+        Works even while the fallback AP is active. If it is, saving
+        immediately switches wlan0 over to the new network &mdash; if
+        that fails (wrong password, out of range), the fallback AP is
+        restored automatically so you're not left without access.
+      </p>
+      <form id="wifi-add-form">
+        <label for="wifi-add-ssid-input">SSID</label>
+        <input id="wifi-add-ssid-input" type="text" maxlength="32" autocomplete="off" required />
+
+        <label for="wifi-add-password-input">Password (leave blank if open)</label>
+        <input id="wifi-add-password-input" type="text" maxlength="63" autocomplete="off" />
+
+        <button type="submit">Save network</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Fallback Access Point</h2>
+      <p class="card-hint">
+        Broadcasts automatically whenever wlan0 has no known network for
+        more than ~25 seconds, so LanPi's dashboard is still reachable
+        directly.
+      </p>
+      <dl id="ap">
+        <dt>Status</dt>
+        <dd id="ap-status">checking...</dd>
+        <dt>Current SSID</dt>
+        <dd id="ap-current-ssid">-</dd>
+        <dt>Address</dt>
+        <dd id="ap-address">-</dd>
+      </dl>
+
+      <form id="ap-form">
+        <label for="ap-ssid-input">SSID</label>
+        <input id="ap-ssid-input" type="text" maxlength="32" autocomplete="off" />
+
+        <label for="ap-password-input">Password (leave blank to keep current)</label>
+        <input id="ap-password-input" type="text" minlength="8" maxlength="63" autocomplete="off" />
+
+        <button type="submit">Save</button>
+      </form>
+      <p class="card-hint">
+        Saving while the fallback AP is active restarts it immediately,
+        disconnecting anyone currently connected to it.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; <span id="footer-year">2026</span> LanPi &mdash; made in Lithuania 🇱🇹</p>
+    <p id="footer-date">-</p>
+  </footer>
+
+  <script src="settings.js"></script>
+</body>
+</html>

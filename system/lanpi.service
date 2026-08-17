@@ -1,0 +1,15 @@
+[Unit]
+Description=LanPi backend service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lanpi
+WorkingDirectory=/home/lanpi/lanpi
+ExecStart=/home/lanpi/lanpi/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
