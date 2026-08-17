@@ -17,11 +17,15 @@ end-to-end including a real iPhone joining the AP**, and have a
 dedicated Settings page. Hardware system stats (CPU/RAM/temp/disk)
 round out the dashboard.
 
-**V0.2 in progress**: MNDP discovery, MTR/traceroute, richer DHCP
-lease info, traffic statistics/top talkers, and now IP scanner are
-all done and live-verified, each with its own dedicated page (Traffic,
-IP Scanner) alongside Dashboard/Settings. Only port scanner is still
-open.
+**V0.2 is feature-complete** as originally scoped: MNDP discovery,
+MTR/traceroute, richer DHCP lease info, traffic statistics/top
+talkers, IP scanner, and port scanner are all done and live-verified,
+each scanner/analysis tool with its own dedicated page (Traffic, IP
+Scanner, Port Scanner) alongside Dashboard/Settings -- five pages now,
+navigated via a pill-button tab bar. One stretch item was added
+afterward and is still open: passive device discovery (a unified
+device list aggregating LLDP/CDP/MNDP/ARP-scan/Traffic-talkers into
+one view).
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -102,6 +106,19 @@ from before this date, that history no longer exists.
     MAC/vendor reporting needs real root, confirmed live (see
     Verified section). Own IP Scanner page
     (`frontend/ip-scanner.html`/`ip-scanner.js`).
+  - `POST /api/tools/port-scan/start`, `GET /api/tools/port-scan/status`,
+    `POST /api/tools/port-scan/stop` — nmap SYN scan (`-sS`) across a
+    port range on one host (`backend/tools/port_scanner.py`), sourced
+    from eth0 via sudo (same reasoning as IP scanner -- `-sS` needs
+    real root). `-Pn` skips nmap's own host-discovery ping so devices
+    that don't answer ICMP but do have open ports still get scanned.
+    Background start/status/stop, but results only appear once the
+    scan finishes (nmap's port table isn't streamed per-port the way
+    IP scanner's host discovery is) -- same shape as `mtr.py`,
+    including the `_stopped`-flag distinction between a cancelled run
+    and an actual failure. Own Port Scanner page
+    (`frontend/port-scanner.html`/`port-scanner.js`) with Well-known/
+    1-10000/All(1-65535) range presets.
   - `POST /api/tools/arp-scan` — active host discovery on eth0's local
     network via `arp-scan` (`backend/tools/arp_scan.py`); uses
     `--localnet` when eth0 has an address, or an explicit network
@@ -158,8 +175,8 @@ from before this date, that history no longer exists.
   `system/99-lanpi-no-forward.conf` disables IP forwarding as
   defense-in-depth for ARCHITECTURE.MD Rule 3 (no bridge between
   `wlan0` and `eth0`), independent of hostapd/dnsmasq internals.
-- **Frontend**: four pages now (Dashboard, Traffic, IP Scanner,
-  Settings), navigated via a pill-button tab bar in the header (each
+- **Frontend**: five pages now (Dashboard, Traffic, IP Scanner, Port
+  Scanner, Settings), navigated via a pill-button tab bar in the header (each
   page's `<nav>` lists every page including itself, marked `.active`
   — replaced plain inline text links after user feedback that they
   read as an ambiguous run-on once there were more than two, with
@@ -187,14 +204,18 @@ from before this date, that history no longer exists.
     automatically on any content change; column count itself only
     changes on an actual window-width breakpoint crossing. This
     layout fits the Dashboard's many small cards, but actively hurt
-    the Traffic/IP Scanner pages (numbers wrapping, a wide table
-    needing a scrollbar with room to spare) -- those use `.stacked-cards`
-    on `<main>` instead (plain full-width flow, no JS) via a reusable
-    class, not page-specific IDs, since more such pages are planned.
+    the Traffic/IP Scanner/Port Scanner pages (numbers wrapping, a
+    wide table needing a scrollbar with room to spare) -- those use
+    `.stacked-cards` on `<main>` instead (plain full-width flow, no
+    JS) via a reusable class, not page-specific IDs, since more such
+    pages are planned.
   - **Traffic** (`/traffic.html` + `traffic.js`): passive traffic
     statistics summary and a Top Talkers table, `.stacked-cards`.
   - **IP Scanner** (`/ip-scanner.html` + `ip-scanner.js`): nmap
     ping-sweep with live-streaming results, `.stacked-cards`.
+  - **Port Scanner** (`/port-scanner.html` + `port-scanner.js`): nmap
+    SYN scan across a port range on one host, range presets,
+    `.stacked-cards`.
   - **Settings** (`/settings.html` + `settings.js`): Wi-Fi client
     scan/connect (password prompt)/saved-network list+forget, an "Add
     known network" form, and fallback AP SSID/password editing (writes
@@ -452,10 +473,20 @@ from before this date, that history no longer exists.
   running nmap via `sudo` instead. Stop also confirmed: mid-scan
   cancel takes ~0.6s with the same process-group approach as MTR's fix
   (applied here preemptively), zero leftover processes after.
+- Port scanner: **fully confirmed working** -- real scan against a
+  MikroTik router (1-1024 range, ~5.5s) correctly found ports 22/53/80
+  (ssh/domain/http) open, matching what's actually enabled on that
+  device. Full-range scan (1-65535) confirmed startable and stoppable
+  (~0.9s to cancel, zero leftover processes) -- caught and fixed a
+  self-inflicted bug before deploying: the initial port-count cap
+  (10000) would have made the page's own "All (1-65535)" preset button
+  always fail its own validation; removed the redundant cap since
+  1-65535 was already the real bound.
 
 ## Known gaps
 
-- No port scanner. Still planned per `ARCHITECTURE.MD` section 18.
+- No passive device discovery (unified device list) -- newly added
+  V0.2 stretch item, not started.
 - PROFINET/S7 traffic detection implemented but not yet confirmed
   against a real device (see Verified section above).
 - No authentication on the web UI or API. Fine for now (LAN-only), but
@@ -468,8 +499,9 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- V0.2 remaining: port scanner -- or closing the auth gap above,
-  whichever the maintainer wants first.
+- V0.2 (as originally scoped) is feature-complete. Remaining: the
+  passive-device-discovery stretch item, or closing the auth gap
+  above -- whichever the maintainer wants first.
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
 - Re-verify the captive-portal auto-open flow with a phone.
