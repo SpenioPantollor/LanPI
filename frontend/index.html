@@ -170,7 +170,10 @@
         <input id="mtr-host" type="text" placeholder="8.8.8.8" autocomplete="off" />
         <label for="mtr-cycles">Cycles per hop</label>
         <input id="mtr-cycles" type="number" min="1" max="60" placeholder="10" autocomplete="off" />
-        <button id="mtr-btn" type="submit">Run</button>
+        <div class="button-row">
+          <button id="mtr-start-btn" type="submit">Run</button>
+          <button id="mtr-stop-btn" type="button" disabled>Stop</button>
+        </div>
       </form>
       <div class="table-scroll">
         <table id="mtr-results" class="data-table" hidden>

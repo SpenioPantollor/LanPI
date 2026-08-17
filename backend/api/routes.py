@@ -134,14 +134,24 @@ def tcp_test_run(body: TcpTestRequest) -> dict:
     return tcp_test.test_port(body.host, body.port)
 
 
-class MtrRequest(BaseModel):
+class MtrStartRequest(BaseModel):
     host: str
     cycles: Optional[int] = 10
 
 
-@router.post("/tools/mtr")
-def mtr_run(body: MtrRequest) -> dict:
-    return mtr_tool.run(body.host, body.cycles or 10)
+@router.post("/tools/mtr/start")
+def mtr_start(body: MtrStartRequest) -> dict:
+    return mtr_tool.start(body.host, body.cycles or 10)
+
+
+@router.get("/tools/mtr/status")
+def mtr_status() -> dict:
+    return mtr_tool.status()
+
+
+@router.post("/tools/mtr/stop")
+def mtr_stop() -> dict:
+    return mtr_tool.stop()
 
 
 class CaptureStartRequest(BaseModel):

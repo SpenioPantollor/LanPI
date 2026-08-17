@@ -361,63 +361,110 @@ async function runArpScan(event) {
   }
 }
 
-async function submitMtr(event) {
+let mtrPollTimer = null;
+
+function renderMtrResult(result) {
+  const startBtn = document.getElementById("mtr-start-btn");
+  const stopBtn = document.getElementById("mtr-stop-btn");
+  const table = document.getElementById("mtr-results");
+  const tbody = document.getElementById("mtr-results-body");
+  const messageEl = document.getElementById("mtr-message");
+
+  startBtn.disabled = result.running;
+  stopBtn.disabled = !result.running;
+
+  if (result.running) {
+    messageEl.textContent = `running (${result.host}, ${result.cycles} cycles/hop)...`;
+    return;
+  }
+
+  if (result.ok === null) {
+    // No run has completed yet since page load -- leave the card blank.
+    return;
+  }
+
+  if (!result.ok) {
+    table.hidden = true;
+    messageEl.textContent = result.message || "MTR failed.";
+    return;
+  }
+
+  if (result.hops.length === 0) {
+    table.hidden = true;
+    messageEl.textContent = "No hops reported.";
+    return;
+  }
+
+  messageEl.textContent = "";
+  tbody.innerHTML = "";
+  for (const hop of result.hops) {
+    const tr = document.createElement("tr");
+    const fmt = (v) => (v ?? "-");
+    tr.innerHTML = `
+      <td>${fmt(hop.hop)}</td>
+      <td>${fmt(hop.host)}</td>
+      <td>${fmt(hop.loss_percent)}</td>
+      <td>${fmt(hop.sent)}</td>
+      <td>${fmt(hop.last_ms)}</td>
+      <td>${fmt(hop.avg_ms)}</td>
+      <td>${fmt(hop.best_ms)}</td>
+      <td>${fmt(hop.worst_ms)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  table.hidden = false;
+}
+
+async function pollMtrStatus() {
+  try {
+    const res = await fetch("/api/tools/mtr/status");
+    const result = await res.json();
+    renderMtrResult(result);
+
+    if (result.running && !mtrPollTimer) {
+      mtrPollTimer = setInterval(pollMtrStatus, 1000);
+    } else if (!result.running && mtrPollTimer) {
+      clearInterval(mtrPollTimer);
+      mtrPollTimer = null;
+    }
+  } catch (err) {
+    // next poll (or the next manual start) will pick things back up
+  }
+}
+
+async function startMtr(event) {
   event.preventDefault();
   const host = document.getElementById("mtr-host").value.trim();
   const cyclesValue = document.getElementById("mtr-cycles").value.trim();
   const cycles = cyclesValue ? parseInt(cyclesValue, 10) : 10;
-  const btn = document.getElementById("mtr-btn");
-  const table = document.getElementById("mtr-results");
-  const tbody = document.getElementById("mtr-results-body");
-  const messageEl = document.getElementById("mtr-message");
   if (!host) return;
 
-  btn.disabled = true;
-  btn.textContent = "Running...";
-  table.hidden = true;
-  tbody.innerHTML = "";
-  messageEl.textContent = "";
-
   try {
-    const res = await fetch("/api/tools/mtr", {
+    const res = await fetch("/api/tools/mtr/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ host, cycles }),
     });
     const result = await res.json();
-
     if (!result.ok) {
-      messageEl.textContent = result.message || "MTR failed.";
+      window.alert(`Failed to start MTR: ${result.message}`);
       return;
     }
-
-    if (result.hops.length === 0) {
-      messageEl.textContent = "No hops reported.";
-      return;
-    }
-
-    for (const hop of result.hops) {
-      const tr = document.createElement("tr");
-      const fmt = (v) => (v ?? "-");
-      tr.innerHTML = `
-        <td>${fmt(hop.hop)}</td>
-        <td>${fmt(hop.host)}</td>
-        <td>${fmt(hop.loss_percent)}</td>
-        <td>${fmt(hop.sent)}</td>
-        <td>${fmt(hop.last_ms)}</td>
-        <td>${fmt(hop.avg_ms)}</td>
-        <td>${fmt(hop.best_ms)}</td>
-        <td>${fmt(hop.worst_ms)}</td>
-      `;
-      tbody.appendChild(tr);
-    }
-    table.hidden = false;
   } catch (err) {
-    messageEl.textContent = "MTR failed.";
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Run";
+    window.alert("Failed to start MTR.");
+    return;
   }
+
+  pollMtrStatus();
+}
+
+async function stopMtr() {
+  try {
+    await fetch("/api/tools/mtr/stop", { method: "POST" });
+  } catch (err) {
+    // next poll reflects actual state
+  }
+  pollMtrStatus();
 }
 
 async function submitTcpTest(event) {
@@ -730,7 +777,8 @@ document.getElementById("eth0-static-form").addEventListener("submit", applyEth0
 document.getElementById("ping-form").addEventListener("submit", startPing);
 document.getElementById("ping-stop-btn").addEventListener("click", stopPing);
 document.getElementById("arp-scan-form").addEventListener("submit", runArpScan);
-document.getElementById("mtr-form").addEventListener("submit", submitMtr);
+document.getElementById("mtr-form").addEventListener("submit", startMtr);
+document.getElementById("mtr-stop-btn").addEventListener("click", stopMtr);
 document.getElementById("tcp-test-form").addEventListener("submit", submitTcpTest);
 document.querySelectorAll("#tcp-test-presets button").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -788,11 +836,12 @@ loadAll();
 loadCaptureList();
 setInterval(loadAll, 5000);
 
-// In case a ping or capture was left running from before a page
-// reload, pick their status up immediately (both resume their own
-// faster polling on their own if still active).
+// In case a ping, capture, or MTR run was left running from before a
+// page reload, pick their status up immediately (all three resume
+// their own faster polling on their own if still active).
 pollPingStatus();
 pollCaptureStatus();
+pollMtrStatus();
 
 // Mobile browsers (especially "add to home screen" standalone mode)
 // suspend timers while the tab/app is backgrounded, so the page can be
