@@ -14,6 +14,7 @@ from backend.tools import arp_scan
 from backend.tools import ip_scanner
 from backend.tools import mtr as mtr_tool
 from backend.tools import ping as ping_tool
+from backend.tools import port_scanner
 from backend.tools import system_info
 from backend.tools import tcp_test
 
@@ -268,6 +269,26 @@ def ip_scan_status() -> dict:
 @router.post("/tools/ip-scan/stop")
 def ip_scan_stop() -> dict:
     return ip_scanner.stop()
+
+
+class PortScanRequest(BaseModel):
+    host: str
+    port_range: str
+
+
+@router.post("/tools/port-scan/start")
+def port_scan_start(body: PortScanRequest) -> dict:
+    return port_scanner.start(body.host, body.port_range, TEST_PORT_INTERFACE)
+
+
+@router.get("/tools/port-scan/status")
+def port_scan_status() -> dict:
+    return port_scanner.status()
+
+
+@router.post("/tools/port-scan/stop")
+def port_scan_stop() -> dict:
+    return port_scanner.stop()
 
 
 @router.get("/traffic/stats")

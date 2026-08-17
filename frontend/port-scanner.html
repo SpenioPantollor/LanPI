@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>LanPi Port Scanner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Port Scanner</h1>
+        <p class="subtitle">TCP port-range scan on eth0</p>
+      </div>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/traffic.html">Traffic</a>
+        <a href="/ip-scanner.html">IP Scanner</a>
+        <a href="/port-scanner.html" class="active">Port Scanner</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="stacked-cards">
+    <section class="card">
+      <h2>Scan</h2>
+      <p class="card-hint">
+        SYN scan (nmap) against a single host's port range &mdash;
+        needs eth0 in DHCP or Static mode. Different from the
+        Dashboard's TCP Port Test: a whole range at once, not one
+        port.
+      </p>
+      <form id="port-scan-form">
+        <label for="port-scan-host">Host or IP</label>
+        <input id="port-scan-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+        <label for="port-scan-range">Port range</label>
+        <input id="port-scan-range" type="text" placeholder="1-1024" autocomplete="off" />
+        <div class="button-row" id="port-scan-presets">
+          <button type="button" data-range="1-1024">Well-known (1-1024)</button>
+          <button type="button" data-range="1-10000">1-10000</button>
+          <button type="button" data-range="1-65535">All (1-65535)</button>
+        </div>
+        <div class="button-row">
+          <button id="port-scan-start-btn" type="submit">Scan</button>
+          <button id="port-scan-stop-btn" type="button" disabled>Stop</button>
+        </div>
+      </form>
+      <p id="port-scan-status" class="card-hint"></p>
+      <div class="table-scroll">
+        <table id="port-scan-results" class="data-table" hidden>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>Protocol</th>
+              <th>State</th>
+              <th>Service</th>
+            </tr>
+          </thead>
+          <tbody id="port-scan-results-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; <span id="footer-year">2026</span> LanPi &mdash; made in Lithuania 🇱🇹</p>
+    <p id="footer-date">-</p>
+  </footer>
+
+  <script src="port-scanner.js"></script>
+</body>
+</html>
