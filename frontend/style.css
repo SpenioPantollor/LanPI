@@ -100,6 +100,23 @@ main {
   box-sizing: border-box;
 }
 
+/* Traffic page: just two cards, both wanting full width (a wide
+   summary line and a 9-column table) -- the JS masonry's fixed
+   ~22rem-minimum columns actively hurt here (numbers wrapping,
+   the table needing a horizontal scrollbar with room to spare).
+   No JS layout needed for two cards -- plain stacked flow instead. */
+#traffic-main {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+#traffic-main .card {
+  position: static;
+  width: 100%;
+}
+
 .card h2 {
   margin: 0 0 0.75rem;
   font-size: 1rem;

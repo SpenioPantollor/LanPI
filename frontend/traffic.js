@@ -106,39 +106,9 @@ function loadAll() {
 
 document.getElementById("traffic-reset-btn").addEventListener("click", resetTrafficStats);
 
-// Fixed round-robin column masonry -- see app.js's layoutCards() for
-// why (stable card positions, no reflow-jumping on content changes).
-function layoutCards() {
-  const container = document.querySelector("main");
-  const cards = Array.from(container.querySelectorAll(".card"));
-  if (cards.length === 0) return;
-
-  const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  const gap = remPx * 1.25;
-  const minColWidth = remPx * 22;
-  const containerWidth = container.clientWidth;
-  const columns = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)));
-  const colWidth = (containerWidth - (columns - 1) * gap) / columns;
-
-  const colHeights = new Array(columns).fill(0);
-  cards.forEach((card, i) => {
-    const col = i % columns;
-    card.style.width = `${colWidth}px`;
-    card.style.left = `${col * (colWidth + gap)}px`;
-    card.style.top = `${colHeights[col]}px`;
-    colHeights[col] += card.offsetHeight + gap;
-  });
-
-  container.style.height = `${Math.max(...colHeights) - gap}px`;
-}
-
-const _cardResizeObserver = new ResizeObserver(() => {
-  window.requestAnimationFrame(layoutCards);
-});
-document.querySelectorAll(".card").forEach((card) => _cardResizeObserver.observe(card));
-window.addEventListener("resize", layoutCards);
-layoutCards();
-
+// No JS masonry on this page -- just two cards, both full-width by
+// design (see #traffic-main in style.css), so plain stacked flow is
+// all that's needed.
 loadAll();
 setInterval(loadAll, 5000);
 
