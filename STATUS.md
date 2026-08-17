@@ -17,15 +17,19 @@ end-to-end including a real iPhone joining the AP**, and have a
 dedicated Settings page. Hardware system stats (CPU/RAM/temp/disk)
 round out the dashboard.
 
-**V0.2 is feature-complete** as originally scoped: MNDP discovery,
-MTR/traceroute, richer DHCP lease info, traffic statistics/top
-talkers, IP scanner, and port scanner are all done and live-verified,
-each scanner/analysis tool with its own dedicated page (Traffic, IP
-Scanner, Port Scanner) alongside Dashboard/Settings -- five pages now,
-navigated via a pill-button tab bar. One stretch item was added
-afterward and is still open: passive device discovery (a unified
-device list aggregating LLDP/CDP/MNDP/ARP-scan/Traffic-talkers into
-one view).
+**V0.2 is feature-complete**: MNDP discovery, MTR/traceroute, richer
+DHCP lease info, traffic statistics/top talkers, IP scanner, and port
+scanner are all done and live-verified, each scanner/analysis tool
+with its own dedicated page (Traffic, IP Scanner, Port Scanner)
+alongside Dashboard/Settings -- five pages now, navigated via a
+pill-button tab bar. A "passive device discovery" stretch item was
+proposed and then dropped (2026-08-17): the Traffic page's Top
+Talkers table already aggregates every passively-observed device
+(IP/MAC + protocol breakdown), so a separate unified-device-list page
+would have been substantially redundant with it.
+
+**Focus is now on testing** the already-built V0.1/V0.2 feature set
+rather than adding more, per the maintainer.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -485,8 +489,6 @@ from before this date, that history no longer exists.
 
 ## Known gaps
 
-- No passive device discovery (unified device list) -- newly added
-  V0.2 stretch item, not started.
 - PROFINET/S7 traffic detection implemented but not yet confirmed
   against a real device (see Verified section above).
 - No authentication on the web UI or API -- **deliberate, not an
@@ -499,9 +501,8 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- V0.2 (as originally scoped) is feature-complete. Remaining: the
-  passive-device-discovery stretch item, whenever the maintainer
-  wants to pick it up.
+- No new features queued -- current focus is testing the existing
+  V0.1/V0.2 feature set live.
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
 - Re-verify the captive-portal auto-open flow with a phone.

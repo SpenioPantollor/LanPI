@@ -369,9 +369,6 @@ Extended network diagnostics:
 * [x] Traffic statistics -- confirmed live (own dedicated Traffic page)
 * [x] Top talkers -- ranked by live bytes/s, confirmed live
 * [x] MTR / traceroute -- confirmed live, real multi-hop trace
-* [ ] Passive device discovery -- unified device list aggregating
-  LLDP/CDP/MNDP neighbors, ARP scan results, and Traffic page talkers
-  into one view, rather than checking each source separately
 
 ### Version 0.3
 
