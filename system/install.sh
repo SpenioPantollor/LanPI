@@ -5,7 +5,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$REPO_DIR/venv"
 
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip tcpdump ethtool hostapd dnsmasq arp-scan mtr-tiny
+sudo apt-get install -y python3-venv python3-pip tcpdump ethtool hostapd dnsmasq arp-scan mtr-tiny nmap
 
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip
@@ -24,6 +24,7 @@ find_bin() {
 }
 sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/bin/tcpdump /usr/sbin/tcpdump tcpdump)"
 sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/sbin/arp-scan /usr/bin/arp-scan arp-scan)"
+sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/bin/nmap /usr/sbin/nmap nmap)"
 
 # Rule 3 (ARCHITECTURE.MD): never bridge/route between wlan0 (management)
 # and eth0 (TEST PORT), including via the fallback AP's NAT.

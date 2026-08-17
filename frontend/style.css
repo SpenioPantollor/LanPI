@@ -42,24 +42,46 @@ header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
+/* Pill-button nav, not plain inline text links -- with a growing
+   number of pages, a bare list of text links reads as an ambiguous
+   run-on rather than distinct destinations. flex-wrap so it drops to
+   a second line under the title on narrow screens instead of
+   squeezing. Each page's nav lists every page including itself,
+   marked .active, so the current location is always visible (a
+   tab bar, not a "links to other pages" list) -- that also means
+   adding a page later is just adding one <a> to every page's nav,
+   not rewiring which pages exclude which link. */
 nav {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 nav a {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
+  text-decoration: none;
   white-space: nowrap;
 }
 
 nav a:hover {
-  text-decoration: underline;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+nav a.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
 }
 
 h1 {
@@ -100,19 +122,21 @@ main {
   box-sizing: border-box;
 }
 
-/* Traffic page: just two cards, both wanting full width (a wide
-   summary line and a 9-column table) -- the JS masonry's fixed
-   ~22rem-minimum columns actively hurt here (numbers wrapping,
-   the table needing a horizontal scrollbar with room to spare).
-   No JS layout needed for two cards -- plain stacked flow instead. */
-#traffic-main {
+/* Utility pages with one or two data-heavy cards (Traffic, IP
+   Scanner, ...) -- the dashboard's JS masonry (fixed ~22rem-minimum
+   columns, for laying out many small cards) actively hurts here:
+   numbers/tables want the full available width instead of being
+   squeezed into a narrow column. Apply .stacked-cards to <main> to
+   opt out: cards go back to plain static full-width stacked flow, no
+   JS layout needed. */
+.stacked-cards {
   position: static;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
 }
 
-#traffic-main .card {
+.stacked-cards .card {
   position: static;
   width: 100%;
 }

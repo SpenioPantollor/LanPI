@@ -11,6 +11,7 @@ from backend.capture import pcap, traffic_stats
 from backend.discovery import cdp, lldp, mndp
 from backend.network import ap, eth0_mode, link, wifi
 from backend.tools import arp_scan
+from backend.tools import ip_scanner
 from backend.tools import mtr as mtr_tool
 from backend.tools import ping as ping_tool
 from backend.tools import system_info
@@ -248,6 +249,25 @@ def ap_config() -> dict:
 @router.post("/network/ap")
 def ap_set_config(body: ApConfigRequest) -> dict:
     return ap.set_config(body.ssid, body.password)
+
+
+class IpScanRequest(BaseModel):
+    target: str
+
+
+@router.post("/tools/ip-scan/start")
+def ip_scan_start(body: IpScanRequest) -> dict:
+    return ip_scanner.start(body.target, TEST_PORT_INTERFACE)
+
+
+@router.get("/tools/ip-scan/status")
+def ip_scan_status() -> dict:
+    return ip_scanner.status()
+
+
+@router.post("/tools/ip-scan/stop")
+def ip_scan_stop() -> dict:
+    return ip_scanner.stop()
 
 
 @router.get("/traffic/stats")

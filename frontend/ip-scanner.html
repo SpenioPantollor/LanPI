@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>LanPi IP Scanner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>IP Scanner</h1>
+        <p class="subtitle">Host discovery on eth0</p>
+      </div>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/traffic.html">Traffic</a>
+        <a href="/ip-scanner.html" class="active">IP Scanner</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="stacked-cards">
+    <section class="card">
+      <h2>Scan</h2>
+      <p class="card-hint">
+        Ping-sweep host discovery via nmap (ICMP/ARP/TCP probes
+        combined) &mdash; needs eth0 in DHCP or Static mode. Different
+        from ARP Scan on the Dashboard: takes an explicit range and
+        works across probe types, not just ARP.
+      </p>
+      <form id="ip-scan-form">
+        <label for="ip-scan-target">Network or range (CIDR)</label>
+        <input id="ip-scan-target" type="text" placeholder="192.168.20.0/24" autocomplete="off" />
+        <div class="button-row">
+          <button id="ip-scan-start-btn" type="submit">Scan</button>
+          <button id="ip-scan-stop-btn" type="button" disabled>Stop</button>
+        </div>
+      </form>
+      <p id="ip-scan-status" class="card-hint"></p>
+      <ul id="ip-scan-results" class="wifi-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; <span id="footer-year">2026</span> LanPi &mdash; made in Lithuania 🇱🇹</p>
+    <p id="footer-date">-</p>
+  </footer>
+
+  <script src="ip-scanner.js"></script>
+</body>
+</html>
