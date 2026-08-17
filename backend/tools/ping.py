@@ -5,10 +5,12 @@ it early, rather than blocking on a fixed count. `count` is optional:
 given, ping stops itself after that many packets (still stoppable
 early); omitted, it runs continuously until stopped.
 
-`received` and `replies` update live, one per reply line as they
-arrive. `transmitted`/`packet_loss_percent` are only known once ping's
-own summary line has been printed -- which happens when it finishes
-its count, or when stopped via SIGINT (not available while running).
+`received`/`min_ms`/`avg_ms`/`max_ms` update live as replies arrive.
+`transmitted`/`packet_loss_percent` are only known once ping's own
+summary line has been printed -- which happens when it finishes its
+count, or when stopped via SIGINT. That same final output also has an
+authoritative "rtt min/avg/max/mdev" line, which overwrites the
+live-computed min/avg/max with ping's own (more precise) numbers.
 """
 
 from __future__ import annotations
@@ -24,17 +26,22 @@ _REPLY_RE = re.compile(r"icmp_seq=(\d+) ttl=(\d+) time=([\d.]+) ms")
 _SUMMARY_RE = re.compile(
     r"(\d+) packets transmitted, (\d+) received,.*?([\d.]+)% packet loss"
 )
-_MAX_STORED_REPLIES = 200
+_RTT_RE = re.compile(
+    r"(?:rtt|round-trip) min/avg/max/(?:mdev|stddev) = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms"
+)
 
 _lock = threading.Lock()
 _state = {
     "running": False,
     "host": None,
     "process": None,
-    "replies": [],
     "received": 0,
     "transmitted": None,
     "packet_loss_percent": None,
+    "min_ms": None,
+    "avg_ms": None,
+    "max_ms": None,
+    "_sum_ms": 0.0,
 }
 
 
@@ -53,23 +60,21 @@ def _reader_loop(process: subprocess.Popen, host: str) -> None:
         match = _REPLY_RE.search(line)
         if not match:
             continue
+        time_ms = float(match.group(3))
         with _lock:
             if _state["host"] != host:
                 return  # superseded by a newer ping session
             _state["received"] += 1
-            _state["replies"].append(
-                {
-                    "seq": int(match.group(1)),
-                    "ttl": int(match.group(2)),
-                    "time_ms": float(match.group(3)),
-                }
-            )
-            if len(_state["replies"]) > _MAX_STORED_REPLIES:
-                _state["replies"] = _state["replies"][-_MAX_STORED_REPLIES:]
+            _state["min_ms"] = time_ms if _state["min_ms"] is None else min(_state["min_ms"], time_ms)
+            _state["max_ms"] = time_ms if _state["max_ms"] is None else max(_state["max_ms"], time_ms)
+            _state["_sum_ms"] += time_ms
+            _state["avg_ms"] = round(_state["_sum_ms"] / _state["received"], 1)
 
     process.wait()
 
-    summary_match = _SUMMARY_RE.search("".join(output_lines))
+    output = "".join(output_lines)
+    summary_match = _SUMMARY_RE.search(output)
+    rtt_match = _RTT_RE.search(output)
     with _lock:
         if _state["host"] != host:
             return
@@ -78,6 +83,10 @@ def _reader_loop(process: subprocess.Popen, host: str) -> None:
             _state["transmitted"] = int(summary_match.group(1))
             _state["received"] = int(summary_match.group(2))
             _state["packet_loss_percent"] = float(summary_match.group(3))
+        if rtt_match:
+            _state["min_ms"] = float(rtt_match.group(1))
+            _state["avg_ms"] = float(rtt_match.group(2))
+            _state["max_ms"] = float(rtt_match.group(3))
 
 
 def start(host: str, count: int | None = None) -> dict:
@@ -114,10 +123,13 @@ def start(host: str, count: int | None = None) -> dict:
         _state["running"] = True
         _state["host"] = host
         _state["process"] = process
-        _state["replies"] = []
         _state["received"] = 0
         _state["transmitted"] = None
         _state["packet_loss_percent"] = None
+        _state["min_ms"] = None
+        _state["avg_ms"] = None
+        _state["max_ms"] = None
+        _state["_sum_ms"] = 0.0
 
     threading.Thread(target=_reader_loop, args=(process, host), daemon=True).start()
     return {"ok": True}
@@ -131,7 +143,9 @@ def status() -> dict:
             "transmitted": _state["transmitted"],
             "received": _state["received"],
             "packet_loss_percent": _state["packet_loss_percent"],
-            "replies": _state["replies"][-20:],
+            "min_ms": _state["min_ms"],
+            "avg_ms": _state["avg_ms"],
+            "max_ms": _state["max_ms"],
         }
 
 

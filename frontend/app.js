@@ -505,7 +505,6 @@ function renderPingStatus(result) {
   const countsEl = document.getElementById("ping-counts");
   const lossEl = document.getElementById("ping-loss");
   const rttEl = document.getElementById("ping-rtt");
-  const repliesEl = document.getElementById("ping-replies");
   const startBtn = document.getElementById("ping-start-btn");
   const stopBtn = document.getElementById("ping-stop-btn");
 
@@ -519,20 +518,18 @@ function renderPingStatus(result) {
   statusEl.className = result.running ? "link-up" : "";
   const transmittedText = result.transmitted ?? (result.running ? "..." : "-");
   countsEl.textContent = `${result.received ?? 0} / ${transmittedText}`;
-  lossEl.textContent = result.packet_loss_percent !== null && result.packet_loss_percent !== undefined
-    ? `${result.packet_loss_percent}%`
-    : "-";
 
-  const replies = result.replies || [];
-  const last = replies[replies.length - 1];
-  rttEl.textContent = last ? `${last.time_ms} ms (seq ${last.seq})` : "-";
-
-  repliesEl.innerHTML = "";
-  for (const reply of replies.slice(-10).reverse()) {
-    const li = document.createElement("li");
-    li.innerHTML = `<span>seq ${reply.seq} - ttl ${reply.ttl} - ${reply.time_ms} ms</span>`;
-    repliesEl.appendChild(li);
+  if (result.packet_loss_percent !== null && result.packet_loss_percent !== undefined) {
+    const lost = result.transmitted != null ? result.transmitted - result.received : null;
+    lossEl.textContent = lost !== null ? `${result.packet_loss_percent}% (${lost} lost)` : `${result.packet_loss_percent}%`;
+  } else {
+    lossEl.textContent = "-";
   }
+
+  const fmtMs = (v) => (v !== null && v !== undefined ? `${v} ms` : "-");
+  rttEl.textContent = result.min_ms !== null && result.min_ms !== undefined
+    ? `${fmtMs(result.min_ms)} / ${fmtMs(result.avg_ms)} / ${fmtMs(result.max_ms)}`
+    : "-";
 
   startBtn.disabled = result.running;
   stopBtn.disabled = !result.running;
