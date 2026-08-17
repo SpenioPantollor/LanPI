@@ -8,9 +8,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.capture import pcap
-from backend.discovery import cdp, lldp
+from backend.discovery import cdp, lldp, mndp
 from backend.network import ap, eth0_mode, link, wifi
 from backend.tools import arp_scan
+from backend.tools import mtr as mtr_tool
 from backend.tools import ping as ping_tool
 from backend.tools import system_info
 from backend.tools import tcp_test
@@ -109,6 +110,11 @@ def cdp_neighbor() -> dict:
     return cdp.get_neighbor(TEST_PORT_INTERFACE)
 
 
+@router.get("/discovery/mndp")
+def mndp_neighbor() -> dict:
+    return mndp.get_neighbor(TEST_PORT_INTERFACE)
+
+
 class ArpScanRequest(BaseModel):
     network: Optional[str] = None
 
@@ -126,6 +132,16 @@ class TcpTestRequest(BaseModel):
 @router.post("/tools/tcp-test")
 def tcp_test_run(body: TcpTestRequest) -> dict:
     return tcp_test.test_port(body.host, body.port)
+
+
+class MtrRequest(BaseModel):
+    host: str
+    cycles: Optional[int] = 10
+
+
+@router.post("/tools/mtr")
+def mtr_run(body: MtrRequest) -> dict:
+    return mtr_tool.run(body.host, body.cycles or 10)
 
 
 class CaptureStartRequest(BaseModel):

@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.api.routes import TEST_PORT_INTERFACE, router as api_router
-from backend.discovery import cdp, lldp
+from backend.discovery import cdp, lldp, mndp
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -41,6 +41,7 @@ app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 def _start_background_listeners() -> None:
     lldp.start_listener(TEST_PORT_INTERFACE)
     cdp.start_listener(TEST_PORT_INTERFACE)
+    mndp.start_listener(TEST_PORT_INTERFACE)
 
 
 @app.exception_handler(StarletteHTTPException)

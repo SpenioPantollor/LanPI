@@ -102,7 +102,10 @@ def get_mode() -> dict:
     address = None
     gateway = None
     dns = []
-    dhcp_router = None
+    # nmcli dumps every DHCP4.OPTION[n] as "key = value" -- keep them
+    # all rather than picking out just "routers" as before, so lease
+    # details (server, lease time, domain) can be surfaced too.
+    dhcp_options: dict[str, str] = {}
     for line in result.stdout.strip().splitlines():
         if line.startswith("GENERAL.CONNECTION:"):
             connection = line.split(":", 1)[1]
@@ -112,13 +115,17 @@ def get_mode() -> dict:
             gateway = line.split(":", 1)[1]
         elif line.startswith("IP4.DNS"):
             dns.append(line.split(":", 1)[1])
-        elif line.startswith("DHCP4.OPTION") and "routers = " in line:
-            dhcp_router = line.split("routers = ", 1)[1].strip()
+        elif line.startswith("DHCP4.OPTION"):
+            _, _, rest = line.partition(":")
+            key, sep, value = rest.strip().partition(" = ")
+            if sep:
+                dhcp_options[key.strip()] = value.strip()
 
     if not connection or connection == "--":
         return {
             "available": True, "mode": "passive",
             "address": None, "gateway": None, "dns": [],
+            "lease_time_seconds": None, "dhcp_server": None, "domain_name": None,
         }
 
     method_result = _run(["-t", "-f", "ipv4.method", "connection", "show", connection])
@@ -135,11 +142,21 @@ def get_mode() -> dict:
     # ever actually installing it as a route.
     if not gateway:
         if mode == "dhcp":
-            gateway = dhcp_router
+            gateway = dhcp_options.get("routers")
         else:
             gw_result = _run(["-t", "-f", "ipv4.gateway", "connection", "show", connection])
             if gw_result and gw_result.returncode == 0:
                 gateway = gw_result.stdout.strip().split(":", 1)[-1].strip() or None
+
+    lease_time = None
+    dhcp_server = None
+    domain_name = None
+    if mode == "dhcp":
+        raw_lease = dhcp_options.get("dhcp_lease_time")
+        if raw_lease and raw_lease.isdigit():
+            lease_time = int(raw_lease)
+        dhcp_server = dhcp_options.get("dhcp_server_identifier") or None
+        domain_name = dhcp_options.get("domain_name") or None
 
     return {
         "available": True,
@@ -147,6 +164,9 @@ def get_mode() -> dict:
         "address": address,
         "gateway": gateway,
         "dns": dns,
+        "lease_time_seconds": lease_time,
+        "dhcp_server": dhcp_server,
+        "domain_name": domain_name,
     }
 
 

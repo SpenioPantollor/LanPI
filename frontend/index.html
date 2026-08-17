@@ -53,6 +53,12 @@
         <dd id="eth0-address">-</dd>
         <dt>Gateway</dt>
         <dd id="eth0-gateway">-</dd>
+        <dt>DHCP Server</dt>
+        <dd id="eth0-dhcp-server">-</dd>
+        <dt>Lease Time</dt>
+        <dd id="eth0-lease-time">-</dd>
+        <dt>Domain</dt>
+        <dd id="eth0-domain">-</dd>
       </dl>
 
       <div class="button-row">
@@ -115,6 +121,31 @@
     </section>
 
     <section class="card">
+      <h2>Neighbor (MNDP)</h2>
+      <p class="card-hint">MikroTik Neighbor Discovery Protocol.</p>
+      <dl id="mndp">
+        <dt>Status</dt>
+        <dd id="mndp-status">checking...</dd>
+        <dt>Identity</dt>
+        <dd id="mndp-identity">-</dd>
+        <dt>Platform / Board</dt>
+        <dd id="mndp-platform">-</dd>
+        <dt>Version</dt>
+        <dd id="mndp-version">-</dd>
+        <dt>Interface</dt>
+        <dd id="mndp-interface">-</dd>
+        <dt>IPv4 Address</dt>
+        <dd id="mndp-address">-</dd>
+        <dt>MAC Address</dt>
+        <dd id="mndp-mac">-</dd>
+        <dt>Uptime</dt>
+        <dd id="mndp-uptime">-</dd>
+        <dt>Last seen</dt>
+        <dd id="mndp-age">-</dd>
+      </dl>
+    </section>
+
+    <section class="card">
       <h2>ARP Scan</h2>
       <p class="card-hint">
         Scans eth0's local network. Uses the configured subnet if eth0
@@ -126,6 +157,39 @@
         <button id="arp-scan-btn" type="submit">Scan</button>
       </form>
       <ul id="arp-scan-results" class="wifi-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>MTR / Traceroute</h2>
+      <p class="card-hint">
+        Sourced from eth0 &mdash; needs DHCP or Static mode. Runs a
+        report of the given number of cycles per hop, then stops.
+      </p>
+      <form id="mtr-form">
+        <label for="mtr-host">Host or IP</label>
+        <input id="mtr-host" type="text" placeholder="8.8.8.8" autocomplete="off" />
+        <label for="mtr-cycles">Cycles per hop</label>
+        <input id="mtr-cycles" type="number" min="1" max="60" placeholder="10" autocomplete="off" />
+        <button id="mtr-btn" type="submit">Run</button>
+      </form>
+      <div class="table-scroll">
+        <table id="mtr-results" class="data-table" hidden>
+          <thead>
+            <tr>
+              <th>Hop</th>
+              <th>Host</th>
+              <th>Loss%</th>
+              <th>Sent</th>
+              <th>Last</th>
+              <th>Avg</th>
+              <th>Best</th>
+              <th>Worst</th>
+            </tr>
+          </thead>
+          <tbody id="mtr-results-body"></tbody>
+        </table>
+      </div>
+      <p id="mtr-message" class="card-hint"></p>
     </section>
 
     <section class="card">

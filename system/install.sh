@@ -5,7 +5,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$REPO_DIR/venv"
 
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip tcpdump ethtool hostapd dnsmasq arp-scan
+sudo apt-get install -y python3-venv python3-pip tcpdump ethtool hostapd dnsmasq arp-scan mtr-tiny
 
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip

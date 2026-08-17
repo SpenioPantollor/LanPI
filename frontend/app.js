@@ -131,6 +131,9 @@ async function loadEth0Mode() {
   const modeEl = document.getElementById("eth0-mode");
   const addressEl = document.getElementById("eth0-address");
   const gatewayEl = document.getElementById("eth0-gateway");
+  const dhcpServerEl = document.getElementById("eth0-dhcp-server");
+  const leaseTimeEl = document.getElementById("eth0-lease-time");
+  const domainEl = document.getElementById("eth0-domain");
 
   try {
     const res = await fetch("/api/network/eth0/mode");
@@ -145,6 +148,9 @@ async function loadEth0Mode() {
     modeEl.className = config.mode === "passive" ? "" : "link-up";
     addressEl.textContent = config.address || "-";
     gatewayEl.textContent = config.gateway || "-";
+    dhcpServerEl.textContent = config.dhcp_server || "-";
+    leaseTimeEl.textContent = config.lease_time_seconds != null ? formatDuration(config.lease_time_seconds) : "-";
+    domainEl.textContent = config.domain_name || "-";
   } catch (err) {
     modeEl.textContent = "unreachable";
   }
@@ -268,6 +274,51 @@ async function loadCdp() {
   }
 }
 
+async function loadMndp() {
+  const statusEl = document.getElementById("mndp-status");
+  const identityEl = document.getElementById("mndp-identity");
+  const platformEl = document.getElementById("mndp-platform");
+  const versionEl = document.getElementById("mndp-version");
+  const interfaceEl = document.getElementById("mndp-interface");
+  const addressEl = document.getElementById("mndp-address");
+  const macEl = document.getElementById("mndp-mac");
+  const uptimeEl = document.getElementById("mndp-uptime");
+  const ageEl = document.getElementById("mndp-age");
+
+  try {
+    const res = await fetch("/api/discovery/mndp");
+    const mndp = await res.json();
+
+    if (!mndp.present) {
+      statusEl.textContent = "no neighbor seen";
+      statusEl.className = "";
+      identityEl.textContent = "-";
+      platformEl.textContent = "-";
+      versionEl.textContent = "-";
+      interfaceEl.textContent = "-";
+      addressEl.textContent = "-";
+      macEl.textContent = "-";
+      uptimeEl.textContent = "-";
+      ageEl.textContent = "-";
+      return;
+    }
+
+    statusEl.textContent = "neighbor found";
+    statusEl.className = "link-up";
+    identityEl.textContent = mndp.identity || "-";
+    platformEl.textContent = [mndp.platform, mndp.board].filter(Boolean).join(" / ") || "-";
+    versionEl.textContent = mndp.version || "-";
+    interfaceEl.textContent = mndp.interface_name || "-";
+    addressEl.textContent = mndp.ipv4_address || "-";
+    macEl.textContent = mndp.mac_address || "-";
+    uptimeEl.textContent = mndp.uptime_seconds != null ? formatDuration(mndp.uptime_seconds) : "-";
+    ageEl.textContent = `${mndp.age_seconds}s ago`;
+  } catch (err) {
+    statusEl.textContent = "unreachable";
+    statusEl.className = "";
+  }
+}
+
 async function runArpScan(event) {
   event.preventDefault();
   const network = document.getElementById("arp-scan-network").value.trim();
@@ -307,6 +358,65 @@ async function runArpScan(event) {
   } finally {
     scanBtn.disabled = false;
     scanBtn.textContent = "Scan";
+  }
+}
+
+async function submitMtr(event) {
+  event.preventDefault();
+  const host = document.getElementById("mtr-host").value.trim();
+  const cyclesValue = document.getElementById("mtr-cycles").value.trim();
+  const cycles = cyclesValue ? parseInt(cyclesValue, 10) : 10;
+  const btn = document.getElementById("mtr-btn");
+  const table = document.getElementById("mtr-results");
+  const tbody = document.getElementById("mtr-results-body");
+  const messageEl = document.getElementById("mtr-message");
+  if (!host) return;
+
+  btn.disabled = true;
+  btn.textContent = "Running...";
+  table.hidden = true;
+  tbody.innerHTML = "";
+  messageEl.textContent = "";
+
+  try {
+    const res = await fetch("/api/tools/mtr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host, cycles }),
+    });
+    const result = await res.json();
+
+    if (!result.ok) {
+      messageEl.textContent = result.message || "MTR failed.";
+      return;
+    }
+
+    if (result.hops.length === 0) {
+      messageEl.textContent = "No hops reported.";
+      return;
+    }
+
+    for (const hop of result.hops) {
+      const tr = document.createElement("tr");
+      const fmt = (v) => (v ?? "-");
+      tr.innerHTML = `
+        <td>${fmt(hop.hop)}</td>
+        <td>${fmt(hop.host)}</td>
+        <td>${fmt(hop.loss_percent)}</td>
+        <td>${fmt(hop.sent)}</td>
+        <td>${fmt(hop.last_ms)}</td>
+        <td>${fmt(hop.avg_ms)}</td>
+        <td>${fmt(hop.best_ms)}</td>
+        <td>${fmt(hop.worst_ms)}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+    table.hidden = false;
+  } catch (err) {
+    messageEl.textContent = "MTR failed.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run";
   }
 }
 
@@ -607,6 +717,7 @@ function loadAll() {
   loadEth0Mode();
   loadLldp();
   loadCdp();
+  loadMndp();
   loadWifiStatus();
   loadCaptureStatus();
   updateFooter();
@@ -619,6 +730,7 @@ document.getElementById("eth0-static-form").addEventListener("submit", applyEth0
 document.getElementById("ping-form").addEventListener("submit", startPing);
 document.getElementById("ping-stop-btn").addEventListener("click", stopPing);
 document.getElementById("arp-scan-form").addEventListener("submit", runArpScan);
+document.getElementById("mtr-form").addEventListener("submit", submitMtr);
 document.getElementById("tcp-test-form").addEventListener("submit", submitTcpTest);
 document.querySelectorAll("#tcp-test-presets button").forEach((btn) => {
   btn.addEventListener("click", () => {
