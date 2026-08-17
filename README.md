@@ -359,7 +359,8 @@ each test):
 
 Extended network diagnostics:
 
-* [ ] IP scanner (subnet host discovery)
+* [x] IP scanner (subnet host discovery) -- confirmed live, real
+  13-host scan with MAC/vendor
 * [ ] Port scanner (port-range scan of a host)
 * [x] MNDP discovery -- confirmed with a real MikroTik neighbor
 * [x] DHCP lease details (server, lease time, domain) alongside the

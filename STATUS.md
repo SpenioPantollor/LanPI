@@ -18,8 +18,9 @@ dedicated Settings page. Hardware system stats (CPU/RAM/temp/disk)
 round out the dashboard.
 
 **V0.2 in progress**: MNDP discovery, MTR/traceroute, richer DHCP
-lease info, and traffic statistics/top talkers (own new Traffic page)
-are done and live-verified. IP scanner and port scanner are still
+lease info, traffic statistics/top talkers, and now IP scanner are
+all done and live-verified, each with its own dedicated page (Traffic,
+IP Scanner) alongside Dashboard/Settings. Only port scanner is still
 open.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
@@ -91,6 +92,16 @@ from before this date, that history no longer exists.
     Ethernet/IPv4/ARP headers plus UDP/TCP ports. Served on its own
     Traffic page (`frontend/traffic.html`/`traffic.js`), not a
     dashboard card -- too many columns for that.
+  - `POST /api/tools/ip-scan/start`, `GET /api/tools/ip-scan/status`,
+    `POST /api/tools/ip-scan/stop` — nmap `-sn` ping-sweep host
+    discovery (`backend/tools/ip_scanner.py`), sourced from eth0
+    (`-e eth0`, needs an address). Background start/status/stop like
+    `mtr.py`, but streams hosts live as nmap reports each one (its
+    plain output is naturally line-by-line, unlike mtr's --json which
+    only appears at the end). Run via `sudo`, not `setcap` -- nmap's
+    MAC/vendor reporting needs real root, confirmed live (see
+    Verified section). Own IP Scanner page
+    (`frontend/ip-scanner.html`/`ip-scanner.js`).
   - `POST /api/tools/arp-scan` — active host discovery on eth0's local
     network via `arp-scan` (`backend/tools/arp_scan.py`); uses
     `--localnet` when eth0 has an address, or an explicit network
@@ -147,32 +158,43 @@ from before this date, that history no longer exists.
   `system/99-lanpi-no-forward.conf` disables IP forwarding as
   defense-in-depth for ARCHITECTURE.MD Rule 3 (no bridge between
   `wlan0` and `eth0`), independent of hostapd/dnsmasq internals.
-- **Frontend**: two pages now.
+- **Frontend**: four pages now (Dashboard, Traffic, IP Scanner,
+  Settings), navigated via a pill-button tab bar in the header (each
+  page's `<nav>` lists every page including itself, marked `.active`
+  — replaced plain inline text links after user feedback that they
+  read as an ambiguous run-on once there were more than two, with
+  more pages planned).
   - **Dashboard** (`/`, `index.html` + `app.js`): Backend, System
     (CPU/RAM/temp/disk), Test Port (eth0, incl. IP mode controls),
-    Neighbor (LLDP), Neighbor (CDP), ARP Scan, a compact read-only
-    Wi-Fi status card linking to Settings, and Ping. Polls every 5s
-    plus an immediate refresh on `visibilitychange` (mobile browsers
-    suspend timers while backgrounded, especially "add to home
-    screen" standalone mode — without this the page shows stale data
-    until manually reloaded). Footer with copyright/year and live
-    date/time.
+    Neighbor (LLDP/CDP/MNDP), ARP Scan, MTR/Traceroute, TCP Port Test,
+    Packet Capture, Ping (min/avg/max RTT, not a per-reply list), and
+    a compact read-only Wi-Fi status card linking to Settings. Polls
+    every 5s plus an immediate refresh on `visibilitychange` (mobile
+    browsers suspend timers while backgrounded — without this the
+    page shows stale data until manually reloaded). Footer with
+    copyright/year and live date/time.
 
     Cards lay out via a small hand-rolled JS masonry (`layoutCards()`
     in `app.js`/`settings.js`), after both pure-CSS options failed
     live: Grid forces uniform row height, stranding shorter cards
-    below a tall neighbor with a big gap (reported after Test Port
-    grew its IP-mode controls); CSS multi-column ("masonry") packs by
-    shortest-current-column, which reflows *every* card's position
-    whenever any one card's height changes, not just cards below it
-    (reported after an ARP scan). The JS version assigns each card a
-    FIXED column by DOM order (`i % columns`) — a card's column never
-    changes due to another card's height, only its offset within its
-    own column does, and only that column's later cards shift as a
-    result. `ResizeObserver` on every card triggers relayout
-    automatically on any content change (ARP results, ping replies,
-    new LLDP/CDP neighbors, etc.); column count itself only changes on
-    an actual window-width breakpoint crossing.
+    below a tall neighbor with a big gap; CSS multi-column ("masonry")
+    packs by shortest-current-column, which reflows *every* card's
+    position whenever any one card's height changes, not just cards
+    below it. The JS version assigns each card a FIXED column by DOM
+    order (`i % columns`) — a card's column never changes due to
+    another card's height, only its offset within its own column
+    does. `ResizeObserver` on every card triggers relayout
+    automatically on any content change; column count itself only
+    changes on an actual window-width breakpoint crossing. This
+    layout fits the Dashboard's many small cards, but actively hurt
+    the Traffic/IP Scanner pages (numbers wrapping, a wide table
+    needing a scrollbar with room to spare) -- those use `.stacked-cards`
+    on `<main>` instead (plain full-width flow, no JS) via a reusable
+    class, not page-specific IDs, since more such pages are planned.
+  - **Traffic** (`/traffic.html` + `traffic.js`): passive traffic
+    statistics summary and a Top Talkers table, `.stacked-cards`.
+  - **IP Scanner** (`/ip-scanner.html` + `ip-scanner.js`): nmap
+    ping-sweep with live-streaming results, `.stacked-cards`.
   - **Settings** (`/settings.html` + `settings.js`): Wi-Fi client
     scan/connect (password prompt)/saved-network list+forget, an "Add
     known network" form, and fallback AP SSID/password editing (writes
@@ -418,11 +440,22 @@ from before this date, that history no longer exists.
   either** -- no such device on hand, same "implementation verified,
   traffic not observed" situation LLDP/CDP were in before a suitable
   neighbor was available.
+- IP scanner: **fully confirmed working** -- real 13-host `/24` scan
+  in ~4s with correct IP/MAC/vendor for every host (Proxmox, Apple,
+  Raspberry Pi, MikroTik all identified correctly by vendor). Found
+  and fixed a real bug along the way: `setcap` (the pattern used for
+  tcpdump/arp-scan) got the scan running but silently dropped
+  MAC/vendor from every result -- confirmed live that nmap's ARP-based
+  MAC discovery specifically requires `geteuid()==0`, not just
+  `cap_net_raw`/`cap_net_admin`, by comparing an unprivileged-but-capable
+  run against a real-root run on the same single host. Switched to
+  running nmap via `sudo` instead. Stop also confirmed: mid-scan
+  cancel takes ~0.6s with the same process-group approach as MTR's fix
+  (applied here preemptively), zero leftover processes after.
 
 ## Known gaps
 
-- No IP scanner, no port scanner. Still planned per `ARCHITECTURE.MD`
-  section 18.
+- No port scanner. Still planned per `ARCHITECTURE.MD` section 18.
 - PROFINET/S7 traffic detection implemented but not yet confirmed
   against a real device (see Verified section above).
 - No authentication on the web UI or API. Fine for now (LAN-only), but
@@ -435,8 +468,8 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- V0.2 remaining: IP scanner, port scanner -- or closing the auth gap
-  above, whichever the maintainer wants first.
+- V0.2 remaining: port scanner -- or closing the auth gap above,
+  whichever the maintainer wants first.
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
 - Re-verify the captive-portal auto-open flow with a phone.
