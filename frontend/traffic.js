@@ -58,8 +58,9 @@ async function loadTrafficStats() {
       for (const talker of stats.top_talkers) {
         const tr = document.createElement("tr");
         const proto = talker.protocols || {};
+        const identity = talker.ip ? `${talker.ip} (${talker.mac})` : talker.mac;
         tr.innerHTML = `
-          <td>${talker.identity}</td>
+          <td>${identity}</td>
           <td>${formatBytes(talker.bytes_per_second)}</td>
           <td>${talker.packets_per_second}</td>
           <td>${talker.broadcast}</td>

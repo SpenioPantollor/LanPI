@@ -64,10 +64,13 @@
     <section class="card">
       <h2>Top Talkers</h2>
       <p class="card-hint">
-        Ranked by live bytes/s (last 5s window). Identity is the source
-        IP when the frame has one, otherwise the source MAC (PROFINET
-        real-time, LLDP, CDP are non-routable L2-only protocols).
+        Ranked by live bytes/s (last 5s window). Grouped by source MAC
+        (always present at L2) with the most recently seen source IP
+        shown alongside it when known -- a device sending both IPv4
+        and LLDP/CDP/PROFINET traffic is one row, not two.
         Broadcast/Multicast/protocol columns are cumulative counts.
+        LanPi's own eth0 traffic is excluded from this table (but
+        still counted in the summary above).
       </p>
       <div class="table-scroll">
         <table id="traffic-talkers-table" class="data-table">
