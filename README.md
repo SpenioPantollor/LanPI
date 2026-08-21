@@ -304,7 +304,7 @@ lanpi/
 │   ├── test_modbus.py / test_modbus_templates.py
 │   ├── test_eth0_mode.py
 │   ├── test_ip_scanner.py / test_port_scanner.py
-│   ├── test_pcap.py / test_dispatcher.py
+│   ├── test_pcap.py / test_dispatcher.py / test_shell.py
 │   └── test_api.py
 │
 ├── backend/
@@ -523,7 +523,14 @@ starting the riskier industrial-protocol work above:
 * [x] Subsystem health reporting (`capture_dispatcher` in
   `/api/status`: is the shared capture actually running, when did it
   last see a packet) -- confirmed live
-* [ ] CI running the test suite on every push
+* [x] Shared command-execution helper (`backend/shell.py`): binary
+  discovery + a consistent `subprocess.run` wrapper, replacing ~12
+  near-identical copies across `backend/network/`, `backend/tools/`,
+  `backend/capture/` -- confirmed live (link status, eth0 mode, Wi-Fi,
+  ARP scan, ping, MTR, system/power status all re-verified against
+  real hardware/network after the migration)
+* [x] CI running the test suite on every push -- GitHub Actions
+  (`.github/workflows/tests.yml`), confirmed green on the first push
 
 ## Safety
 

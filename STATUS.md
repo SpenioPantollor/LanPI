@@ -40,19 +40,23 @@ DCP/traffic detection, S7 diagnostics, and industrial device ID are
 still open, deliberately deferred until real PLC hardware is available
 (maintainer's call, 2026-08-21) -- not started in this pass.
 
-**V0.2.3 (foundation hardening) started 2026-08-21**, per a maintainer-
-provided refactoring brief: the goal is making the existing V0.1/V0.2
-code more robust before building further industrial-protocol features
-on top of it, not adding new user-facing functionality. Agreed
-execution order: centralized versioning + pinned dependencies (done),
-automated tests (done), management-interface isolation (done),
-capture storage limits (done), route-file splitting + shared capture
-dispatcher + health reporting (done, this entry) -- only a command-
-execution helper and CI remain. See README's Version 0.2.3 roadmap
-section for the live checklist. `eth0` was deliberately
-kept as a management/recovery path (SSH) even after interface
-isolation, on the maintainer's explicit pushback against the brief's
-original item 1 -- only port 8000 gets blocked there, not port 22.
+**V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
+maintainer-provided refactoring brief: the goal was making the
+existing V0.1/V0.2 code more robust before building further
+industrial-protocol features on top of it, not adding new user-facing
+functionality. All 8 agreed items done and live-verified: centralized
+versioning + pinned dependencies, automated tests, management-interface
+isolation, capture storage limits, route-file splitting, the shared
+capture dispatcher + health reporting, the shared command-execution
+helper, and CI. See README's Version 0.2.3 roadmap section for the
+full checklist. `eth0` was deliberately kept as a management/recovery
+path (SSH) even after interface isolation, on the maintainer's
+explicit pushback against the brief's original item 1 -- only port
+8000 gets blocked there, not port 22. Four brief items (unified device
+registry, link event history, duplicate IP detection, rogue DHCP
+server detection) were reclassified as new features rather than
+foundation hardening and moved to the V0.3 backlog instead (see
+README).
 
 - Centralized version management: single `VERSION` file at the repo
   root, read by `backend/version.py`, consumed by both FastAPI's own
@@ -68,7 +72,7 @@ original item 1 -- only port 8000 gets blocked there, not port 22.
   requires a newer Python, so pip's resolver silently finds no
   matching version. Not a bug in the constraint; the Pi (the real
   target, Python 3.13) is what matters and works.
-- Automated tests: `pytest` suite added under `tests/` (77 tests, all
+- Automated tests: `pytest` suite added under `tests/` (99 tests, all
   passing) -- the hand-rolled LLDP/CDP/MNDP TLV parsers (synthetic
   frames, no tcpdump needed), the traffic-stats classifier including
   this session's talker-merge and self-MAC-exclusion logic, the Modbus
@@ -117,6 +121,26 @@ original item 1 -- only port 8000 gets blocked there, not port 22.
   tcpdump processes used to report. `/api/status`'s new
   `capture_dispatcher` field confirmed live too
   (`capture_running: true`, `seconds_since_last_packet` updating).
+- Shared command-execution helper (`backend/shell.py`): consolidates
+  ~12 near-identical binary-discovery/subprocess.run copies across
+  `backend/network/{ap,eth0_mode,link,wifi}.py`,
+  `backend/tools/{arp_scan,ip_scanner,mtr,ping,port_scanner,
+  system_info}.py`, and `backend/capture/{dispatcher,pcap}.py` into
+  `find_binary()`/`run()`/`run_privileged()` -- **confirmed live**
+  after redeploy: link status (`ip`/`ethtool`), eth0 mode (`nmcli`),
+  Wi-Fi status (`nmcli`), ARP scan (real 14-host scan with vendors),
+  ping, MTR, and system/power status (`vcgencmd`) all re-verified
+  working against real hardware/network. The fallback AP's
+  activate/deactivate path (`ap.py`) uses the identical
+  `run_privileged()` pattern already proven by the above, but wasn't
+  independently live-flipped this pass (disruptive to `wlan0` to test
+  casually -- see `wlan0` caution elsewhere in this file). Also fixed
+  a latent bug while migrating: `ap.py`'s `set_config()` used
+  `systemctl` in a subprocess call with no guard if it wasn't found.
+- CI: `.github/workflows/tests.yml` runs `pytest` on every push to
+  `main` and every PR (Python 3.13, matching the Pi) -- **confirmed
+  green** on the first push (`gh run list` showed `completed success`
+  within 20 seconds).
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -645,15 +669,19 @@ from before this date, that history no longer exists.
   events firing. Those still rely on the manual
   live-verification-on-the-Pi discipline described throughout this
   file.
-- V0.2.3 foundation work is nearly done (see Summary above) -- only a
-  centralized command-execution helper and CI remain.
+- The fallback AP's activate/deactivate path (`ap.py`, `shell.
+  run_privileged()`) wasn't independently live-tested in the v0.2.3
+  #10 migration -- structurally identical to the already-verified
+  wifi.py/eth0_mode.py usage, but not flipped live to confirm (see
+  Verified section above).
 
 ## Next steps
 
-- Continue the V0.2.3 foundation sequence: CI running `pytest` on
-  every push next (the command-execution helper is meant to be
-  applied incrementally to new code rather than as its own dedicated
-  pass).
+- **V0.2.3 Foundation is complete.** Next up is either V0.3 industrial
+  protocol work (PROFINET/S7 -- deliberately deferred until real PLC
+  hardware is available) or one of the V0.3 backlog items (device
+  registry, link event history, duplicate IP detection, DHCP server
+  detection -- see README), whichever the maintainer prioritizes.
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).
