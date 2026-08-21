@@ -473,6 +473,23 @@ Industrial Ethernet support:
   works but the Kamstrup register map's accuracy is still unverified
 * [ ] Industrial device identification
 
+General diagnostics, proposed as part of the v0.2.3 Foundation brief
+but moved here (2026-08-21): they're genuinely new user-facing
+features, not "foundation" hardening, so they don't belong in a pass
+whose explicit goal was no major new features:
+
+* [ ] Unified device registry -- a single list merging every
+  passively-observed device (LLDP/CDP/MNDP neighbors, Top Talkers,
+  scan results) into one view. This is substantially the same idea as
+  the "passive device discovery" feature already considered and
+  dropped earlier (see `STATUS.md`) as redundant with Traffic's Top
+  Talkers table -- worth revisiting as its own deliberate feature
+  decision when the time comes, not assumed as infrastructure work
+* [ ] Link event history (up/down/speed-change log for `eth0`, not
+  just its current snapshot state)
+* [ ] Duplicate IP detection on the TEST PORT
+* [ ] Rogue/unexpected DHCP server detection on the TEST PORT
+
 ### Version 0.2.3 — Foundation
 
 Not new features -- hardening what V0.1/V0.2 already built, before
