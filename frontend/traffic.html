@@ -64,7 +64,9 @@
     <section class="card">
       <h2>Top Talkers</h2>
       <p class="card-hint">
-        Ranked by live bytes/s (last 5s window). Grouped by source MAC
+        Ranked by total bytes over the whole summary period (since
+        start/reset, same period as the Summary card above) -- click
+        any column to sort by it instead. Grouped by source MAC
         (always present at L2) with the most recently seen source IP
         shown alongside it when known -- a device sending both IPv4
         and LLDP/CDP/PROFINET traffic is one row, not two.
@@ -76,15 +78,15 @@
         <table id="traffic-talkers-table" class="data-table">
           <thead>
             <tr>
-              <th>Identity</th>
-              <th>Bytes/s</th>
-              <th>Pkts/s</th>
-              <th>Broadcast</th>
-              <th>Multicast</th>
-              <th>ARP</th>
-              <th>PROFINET</th>
-              <th>S7</th>
-              <th>mDNS</th>
+              <th data-sort="identity" data-type="string">Identity</th>
+              <th data-sort="bytes" data-type="number">Bytes</th>
+              <th data-sort="packets" data-type="number">Packets</th>
+              <th data-sort="broadcast" data-type="number">Broadcast</th>
+              <th data-sort="multicast" data-type="number">Multicast</th>
+              <th data-sort="arp" data-type="number">ARP</th>
+              <th data-sort="profinet" data-type="number">PROFINET</th>
+              <th data-sort="s7" data-type="number">S7</th>
+              <th data-sort="mdns" data-type="number">mDNS</th>
             </tr>
           </thead>
           <tbody id="traffic-talkers-body"></tbody>

@@ -266,7 +266,7 @@ def start_listener(interface: str = "eth0") -> None:
     thread.start()
 
 
-def get_stats(top_n: int = 15) -> dict:
+def get_stats() -> dict:
     with _lock:
         now = time.time()
         cutoff = now - _RATE_WINDOW_SECONDS
@@ -299,7 +299,14 @@ def get_stats(top_n: int = 15) -> dict:
                     "protocols": dict(cum["protocols"]),
                 }
             )
-        talkers_list.sort(key=lambda t: t["bytes_per_second"], reverse=True)
+        # Default/API order ranks by cumulative bytes over the whole
+        # summary period (since start/reset), not the live 5s rate --
+        # matches the Summary card above it, which is also cumulative.
+        # The frontend re-sorts client-side on column click; every
+        # talker is returned (not just a top-N slice) so sorting by
+        # any other column is still accurate, not limited to whichever
+        # subset happened to be the top N by bytes.
+        talkers_list.sort(key=lambda t: t["bytes"], reverse=True)
 
         return {
             "elapsed_seconds": round(elapsed, 1),
@@ -311,7 +318,7 @@ def get_stats(top_n: int = 15) -> dict:
             "multicast": _stats["multicast"],
             "unicast": _stats["unicast"],
             "protocols": dict(_stats["protocols"]),
-            "top_talkers": talkers_list[:top_n],
+            "top_talkers": talkers_list,
         }
 
 

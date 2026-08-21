@@ -321,6 +321,23 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+.data-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th[data-sort]:hover {
+  color: var(--text);
+}
+
+.data-table th[data-sort].sorted::after {
+  content: " \25B2";
+}
+
+.data-table th[data-sort].sorted.sorted-desc::after {
+  content: " \25BC";
+}
+
 /* Only the first column (Identity) is a label here -- every other
    column is numeric, unlike MTR's table where Hop/Host are both
    label-ish. */
