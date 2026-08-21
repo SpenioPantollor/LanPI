@@ -1,5 +1,5 @@
 {
-  "_comment": "Placeholder templates with FAKE addresses -- copy this file to modbus_templates.json (gitignored, so your real device data never gets committed) and replace with real values from your device's own Modbus register map documentation (e.g. a Kamstrup Multical meter manual, a Phoenix Contact energy meter manual). Don't trust the example addresses below against a real device.",
+  "_comment": "Placeholder templates with FAKE addresses -- copy this file to modbus_templates.json and replace with real values from your device's own Modbus register map documentation (e.g. a Kamstrup Multical meter manual, a Phoenix Contact energy meter manual). Don't trust the example addresses below against a real device. modbus_templates.json is tracked in git like this file -- a device's register map is public manufacturer documentation, not site-specific data.",
   "templates": [
     {
       "id": "example-energy-meter",

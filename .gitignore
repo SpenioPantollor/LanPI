@@ -4,9 +4,3 @@ venv/
 .venv/
 *.pcap
 .DS_Store
-
-# Real device-specific Modbus register maps are the maintainer's own
-# field data (specific meters/devices at real sites), not something
-# to publish alongside the rest of this project -- see
-# config/modbus_templates.example.json for the committed placeholder.
-config/modbus_templates.json

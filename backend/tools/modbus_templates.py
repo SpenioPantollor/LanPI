@@ -2,15 +2,14 @@
 list of labeled registers) so a known device type's function code/
 address/quantity don't need re-entering by hand every time.
 
-Templates live in a gitignored JSON file (config/modbus_templates.json)
-rather than being committed to the repo: real register maps for
-specific devices (e.g. a particular Kamstrup meter or Phoenix Contact
-energy meter model) are the maintainer's own field data, not something
-to publish alongside the rest of this project.
-config/modbus_templates.example.json (committed, fake addresses) is
-used as a fallback when the real file doesn't exist yet, so the
-feature still works out of the box with an obviously-placeholder
-example.
+Templates live in config/modbus_templates.json, tracked in git: a
+device's register map (which function/address reads which value) is
+public information from its own manufacturer documentation, not
+site-specific data -- nothing about a specific Kamstrup or Phoenix
+Contact meter model's register layout identifies where or how it's
+deployed. config/modbus_templates.example.json (a placeholder with
+fake addresses) is used as a fallback if the real file is ever
+missing, so the feature still works out of the box.
 """
 
 from __future__ import annotations
