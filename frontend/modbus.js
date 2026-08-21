@@ -150,9 +150,95 @@ function updateFooter() {
   });
 }
 
+async function loadModbusTemplates() {
+  const select = document.getElementById("modbus-template-select");
+  try {
+    const res = await fetch("/api/tools/modbus/templates");
+    const templates = await res.json();
+
+    select.innerHTML = "";
+    if (templates.length === 0) {
+      select.innerHTML = "<option value=\"\">No templates found</option>";
+      return;
+    }
+    for (const t of templates) {
+      const opt = document.createElement("option");
+      opt.value = t.id;
+      opt.textContent = t.name;
+      select.appendChild(opt);
+    }
+  } catch (err) {
+    select.innerHTML = "<option value=\"\">Unreachable</option>";
+  }
+}
+
+async function submitModbusTemplateRead(event) {
+  event.preventDefault();
+  const templateId = document.getElementById("modbus-template-select").value;
+  const host = document.getElementById("modbus-template-host").value.trim();
+  const portValue = document.getElementById("modbus-template-port").value.trim();
+
+  const statusEl = document.getElementById("modbus-template-status");
+  const table = document.getElementById("modbus-template-results");
+  const tbody = document.getElementById("modbus-template-results-body");
+  const btn = document.getElementById("modbus-template-read-btn");
+
+  if (!templateId || !host) return;
+  const port = portValue ? parseInt(portValue, 10) : 502;
+
+  btn.disabled = true;
+  btn.textContent = "Reading...";
+  table.hidden = true;
+  statusEl.textContent = "";
+
+  try {
+    const res = await fetch("/api/tools/modbus/templates/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: templateId, host, port }),
+    });
+    const result = await res.json();
+
+    if (!result.ok) {
+      statusEl.textContent = result.message || "Read failed.";
+      return;
+    }
+
+    statusEl.textContent = `${result.template} -- ${result.results.length} register(s)`;
+    tbody.innerHTML = "";
+    for (const r of result.results) {
+      const tr = document.createElement("tr");
+      let valueText;
+      if (!r.ok) {
+        valueText = r.message || "error";
+      } else if (r.function_code === 1 || r.function_code === 2) {
+        valueText = r.values.map((v) => (v ? "ON" : "OFF")).join(", ");
+      } else {
+        valueText = r.values.join(", ");
+      }
+      tr.innerHTML = `
+        <td>${r.label}</td>
+        <td>${r.address}</td>
+        <td>${valueText}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+    table.hidden = false;
+  } catch (err) {
+    statusEl.textContent = "Read failed.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Read All";
+  }
+}
+
 document.getElementById("modbus-form").addEventListener("submit", submitModbusRead);
 document.getElementById("modbus-stop-btn").addEventListener("click", stopModbusPoll);
+document.getElementById("modbus-template-form").addEventListener("submit", submitModbusTemplateRead);
 
-applyModbusConfig(loadModbusConfig());
+const _initialModbusConfig = loadModbusConfig();
+applyModbusConfig(_initialModbusConfig);
+document.getElementById("modbus-template-host").value = _initialModbusConfig.host;
+loadModbusTemplates();
 updateFooter();
 setInterval(updateFooter, 60000);

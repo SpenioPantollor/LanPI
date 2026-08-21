@@ -75,6 +75,41 @@
         </table>
       </div>
     </section>
+
+    <section class="card">
+      <h2>Device Templates</h2>
+      <p class="card-hint">
+        Named presets for known device types (unit ID + a labeled
+        register list), so a known meter/device doesn't need its
+        function code/address/quantity looked up by hand every time.
+        Edited directly in <code>config/modbus_templates.json</code>
+        on the Pi (gitignored, not this page) &mdash; see the repo's
+        <code>config/modbus_templates.example.json</code> for the
+        format and a placeholder example.
+      </p>
+      <form id="modbus-template-form">
+        <label for="modbus-template-select">Template</label>
+        <select id="modbus-template-select"><option value="">Loading...</option></select>
+        <label for="modbus-template-host">Host or IP</label>
+        <input id="modbus-template-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+        <label for="modbus-template-port">Port</label>
+        <input id="modbus-template-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+        <button id="modbus-template-read-btn" type="submit">Read All</button>
+      </form>
+      <p id="modbus-template-status" class="card-hint"></p>
+      <div class="table-scroll">
+        <table id="modbus-template-results" class="data-table" hidden>
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Address</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody id="modbus-template-results-body"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <footer>

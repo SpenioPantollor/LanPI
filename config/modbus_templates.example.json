@@ -1,0 +1,34 @@
+{
+  "_comment": "Placeholder templates with FAKE addresses -- copy this file to modbus_templates.json (gitignored, so your real device data never gets committed) and replace with real values from your device's own Modbus register map documentation (e.g. a Kamstrup Multical meter manual, a Phoenix Contact energy meter manual). Don't trust the example addresses below against a real device.",
+  "templates": [
+    {
+      "id": "example-energy-meter",
+      "name": "Example Energy Meter (EDIT ME -- fake addresses)",
+      "description": "Placeholder only. Replace unit_id and each register's function_code/address/quantity with the real values from your specific meter model's documentation before trusting any result.",
+      "unit_id": 1,
+      "registers": [
+        {
+          "label": "Example: Active Energy (kWh)",
+          "function_code": 3,
+          "address": 0,
+          "quantity": 2,
+          "note": "Placeholder -- e.g. a 32-bit value across 2 registers, per your meter's manual"
+        },
+        {
+          "label": "Example: Active Power (W)",
+          "function_code": 3,
+          "address": 10,
+          "quantity": 2,
+          "note": "Placeholder"
+        },
+        {
+          "label": "Example: Status Coil",
+          "function_code": 1,
+          "address": 0,
+          "quantity": 1,
+          "note": "Placeholder"
+        }
+      ]
+    }
+  ]
+}
