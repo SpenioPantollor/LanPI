@@ -45,10 +45,10 @@ provided refactoring brief: the goal is making the existing V0.1/V0.2
 code more robust before building further industrial-protocol features
 on top of it, not adding new user-facing functionality. Agreed
 execution order: centralized versioning + pinned dependencies (done),
-automated tests (done, this entry), then management-interface
-isolation, capture storage limits, route-file splitting, the shared
-capture dispatcher, and CI -- in that order, see README's Version
-0.2.3 roadmap section for the live checklist. `eth0` was deliberately
+automated tests (done), management-interface isolation (done),
+capture storage limits (done, this entry), then route-file splitting,
+the shared capture dispatcher, and CI -- in that order, see README's
+Version 0.2.3 roadmap section for the live checklist. `eth0` was deliberately
 kept as a management/recovery path (SSH) even after interface
 isolation, on the maintainer's explicit pushback against the brief's
 original item 1 -- only port 8000 gets blocked there, not port 22.
@@ -87,6 +87,18 @@ original item 1 -- only port 8000 gets blocked there, not port 22.
   the maintainer's explicit pushback on the original brief, SSH was
   deliberately left open on `eth0` rather than isolating it entirely --
   it's the recovery path if `wlan0` becomes unreachable.
+- Capture storage limits: a running capture rotates into a new
+  `lanpi-<started>-<part>.pcap` file (clean SIGTERM + respawn, not
+  tcpdump's own `-C`, which breaks the `.pcap` extension) once the
+  active file crosses ~100MB, and `_prune_oldest()` deletes the
+  oldest saved captures (by mtime) whenever the total exceeds ~1GB,
+  run before every new session and after every rotation/stop --
+  **confirmed live** against real tcpdump capturing real `eth0`
+  traffic: with thresholds temporarily lowered (100 bytes/20KB) for
+  the test, a real capture rotated 001 -> 002 -> 003 as expected, and
+  starting a second session correctly pruned the oldest file from the
+  first session to stay under the (lowered) total cap, while the
+  actively-written file was never touched.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -606,20 +618,21 @@ from before this date, that history no longer exists.
   actually changes (e.g. LanPi starts getting exposed somewhere less
   trusted than a LAN/fallback-AP client).
 - Test coverage (`tests/`) is parser/classifier/validation-level only
-  -- no integration tests against the actual background-thread
-  listeners, real subprocess tools (`tcpdump`/`nmap`/`mtr`/`nmcli`),
-  or a live FastAPI app with startup events firing. Those still rely
-  on the manual live-verification-on-the-Pi discipline described
-  throughout this file.
+  -- no integration tests against the real `tcpdump`/`nmap`/`mtr`/
+  `nmcli` binaries themselves (`test_pcap.py`'s rotation/pruning tests
+  use a process-spawn stand-in, not real tcpdump), the actual
+  background-thread listeners, or a live FastAPI app with startup
+  events firing. Those still rely on the manual
+  live-verification-on-the-Pi discipline described throughout this
+  file.
 - V0.2.3 foundation work is partway done (see Summary above) --
-  capture storage limits, route-file splitting, the shared capture
-  dispatcher, subsystem health reporting, and CI are agreed but not
-  yet started.
+  route-file splitting, the shared capture dispatcher, subsystem
+  health reporting, and CI are agreed but not yet started.
 
 ## Next steps
 
-- Continue the V0.2.3 foundation sequence: capture storage limits
-  (size/space caps on recorded `.pcap` files) next.
+- Continue the V0.2.3 foundation sequence: split
+  `backend/api/routes.py` into per-feature route modules next.
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).
