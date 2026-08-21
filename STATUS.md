@@ -512,7 +512,24 @@ from before this date, that history no longer exists.
   readable message rather than crashing or showing raw bytes. Passive
   mode's "no source IP" error path confirmed live on the real Pi.
   **Not yet exercised against a real PLC/Modbus device** -- next
-  real-hardware test when one's available.
+  real-hardware test when one's available. Two real Kamstrup device
+  templates (types 300/302, 41+52 registers, from the maintainer's own
+  documentation) added to `config/modbus_templates.json` (tracked in
+  git -- a register map is manufacturer documentation, not site data),
+  including float32 register decoding (`decoded_value` in the API) and
+  fixed labeling for the sheet's "*" High Resolution register variants.
+- Power/undervoltage status added to the System card
+  (`system_info.get_power_status()`, via `vcgencmd get_throttled`) --
+  **confirmed live on the deployed Pi, and found a real problem**: the
+  Pi currently reports `0x50005`, i.e. undervoltage and throttling
+  active *right now*, not just a past occurrence. The maintainer's
+  power supply/cable needs attention.
+- All Dashboard/IP-Scanner/Port-Scanner/Modbus form fields now persist
+  last-used values via `localStorage` (user feedback: retyping host/
+  target/etc for every run got old); Ping and MTR's host fields also
+  got a real default value (`8.8.8.8`) instead of a placeholder-only
+  hint that looked filled in but wasn't (submitting with nothing typed
+  silently no-op'd on the `if (!host) return` guard).
 
 ## Known gaps
 
