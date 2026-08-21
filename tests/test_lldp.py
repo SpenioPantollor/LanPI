@@ -1,8 +1,12 @@
-"""Tests for backend/discovery/lldp.py's pure TLV parser (_parse_lldpdu).
+"""Tests for backend/discovery/lldp.py: the pure TLV parser
+(_parse_lldpdu) and _handle_packet(), the dispatcher-facing entry point
+that does the EtherType filter formerly done by a BPF filter at the
+tcpdump level (see backend/capture/dispatcher.py).
 
-No tcpdump/subprocess/network involved -- these feed hand-built LLDPDU
-byte sequences straight into the parser, the same shape tcpdump would
-hand it after stripping the Ethernet header.
+No tcpdump/subprocess/network involved -- these feed hand-built raw
+Ethernet frames / LLDPDU byte sequences straight to the module, the
+same shape the dispatcher hands every listener after stripping pcap
+record framing.
 """
 import struct
 
@@ -12,6 +16,10 @@ from backend.discovery import lldp
 def _tlv(tlv_type: int, value: bytes) -> bytes:
     header = (tlv_type << 9) | len(value)
     return struct.pack("!H", header) + value
+
+
+def _eth_frame(ethertype: int, payload: bytes) -> bytes:
+    return b"\x00" * 6 + b"\x11" * 6 + struct.pack("!H", ethertype) + payload
 
 
 def _mac(s: str) -> bytes:
@@ -73,3 +81,21 @@ def test_truncated_tlv_stops_without_raising():
 def test_empty_payload_returns_all_none():
     neighbor = lldp._parse_lldpdu(b"")
     assert all(v is None for v in neighbor.values())
+
+
+def test_handle_packet_ignores_non_lldp_ethertype():
+    lldp._neighbors.clear()
+    packet = _eth_frame(0x0800, b"\x00" * 20)  # IPv4, not LLDP
+
+    lldp._handle_packet("eth0", packet)
+
+    assert lldp._neighbors == {}
+
+
+def test_handle_packet_parses_and_caches_an_lldp_frame():
+    lldp._neighbors.clear()
+    packet = _eth_frame(0x88CC, _tlv(5, b"switch01"))
+
+    lldp._handle_packet("eth0", packet)
+
+    assert lldp._neighbors["eth0"]["system_name"] == "switch01"

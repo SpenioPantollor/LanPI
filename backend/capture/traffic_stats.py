@@ -1,7 +1,7 @@
-"""Passive traffic statistics on the TEST PORT (eth0), via tcpdump.
+"""Passive traffic statistics on the TEST PORT (eth0).
 
 Same background-thread-plus-cache shape as backend/discovery/*.py, but
-with no BPF filter -- every packet is parsed (Ethernet + IPv4/ARP
+with no filtering -- every packet is parsed (Ethernet + IPv4/ARP
 headers, plus UDP/TCP ports for a few protocols, no deep payload
 inspection) to maintain:
 
@@ -30,10 +30,13 @@ port-scan, this capture's own DHCP renewals, ...), which isn't a
 "neighbor on the network" the way every other talker is (user-reported
 noise).
 
-Runs its own dedicated tcpdump, same as lldp.py/cdp.py/mndp.py do for
-their own protocols, rather than fanning a single capture out to
-multiple parsers. Unlike those (narrowly filtered) listeners, this one
-has no BPF filter at all, so it's a heavier capture on a busy network.
+Packets arrive via backend/capture/dispatcher.py's single shared
+tcpdump capture (v0.2.3 Foundation #3) rather than this module running
+its own dedicated tcpdump process -- this was always the one listener
+with no BPF filter to begin with (it needs every packet anyway), so
+consolidating onto the shared capture needed no new Python-level
+filtering here, unlike backend/discovery/*.py's narrower listeners
+(see dispatcher.py's docstring for why theirs did).
 
 Counters accumulate from when the listener starts until reset() is
 called -- no automatic decay or eviction (beyond the talker-count cap
@@ -43,17 +46,13 @@ unattended long-term monitoring.
 
 from __future__ import annotations
 
-import shutil
 import struct
-import subprocess
 import threading
 import time
 from collections import deque
 
-_TCPDUMP_CANDIDATES = ["/usr/bin/tcpdump", "/usr/sbin/tcpdump", "tcpdump"]
-_PCAP_GLOBAL_HEADER_LEN = 24
-_PCAP_RECORD_HEADER_LEN = 16
-_RESTART_DELAY_SECONDS = 5
+from backend.capture import dispatcher
+
 _RATE_WINDOW_SECONDS = 5.0
 _MAX_TALKERS = 500
 _CDP_DEST_MAC = b"\x01\x00\x0c\xcc\xcc\xcc"
@@ -88,14 +87,6 @@ _stats = _empty_stats()
 _talkers: dict[str, dict] = {}  # mac -> {ip, packets, bytes, broadcast, multicast, protocols}
 _recent_packets: deque = deque()  # (timestamp, mac, length)
 _started_interfaces: set[str] = set()
-
-
-def _find_tcpdump() -> str | None:
-    for candidate in _TCPDUMP_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
 
 
 def _self_mac() -> str | None:
@@ -210,61 +201,13 @@ def _classify_and_record(packet: bytes) -> None:
                 talker["protocols"][p] += 1
 
 
-def _read_exact(stream, count: int) -> bytes | None:
-    data = b""
-    while len(data) < count:
-        chunk = stream.read(count - len(data))
-        if not chunk:
-            return None
-        data += chunk
-    return data
-
-
-def _capture_loop(interface: str) -> None:
-    tcpdump = _find_tcpdump()
-    if not tcpdump:
-        return
-
-    while True:
-        proc = None
-        try:
-            proc = subprocess.Popen(
-                [tcpdump, "-i", interface, "-U", "-nn", "-w", "-"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-            stdout = proc.stdout
-            if _read_exact(stdout, _PCAP_GLOBAL_HEADER_LEN) is None:
-                continue
-
-            while True:
-                record_header = _read_exact(stdout, _PCAP_RECORD_HEADER_LEN)
-                if record_header is None:
-                    break
-                _, _, incl_len, _ = struct.unpack("<IIII", record_header)
-                packet = _read_exact(stdout, incl_len)
-                if packet is None:
-                    break
-                _classify_and_record(packet)
-        except Exception:
-            pass
-        finally:
-            if proc is not None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-                except Exception:
-                    pass
-        time.sleep(_RESTART_DELAY_SECONDS)
-
-
 def start_listener(interface: str = "eth0") -> None:
     with _lock:
         if interface in _started_interfaces:
             return
         _started_interfaces.add(interface)
-    thread = threading.Thread(target=_capture_loop, args=(interface,), daemon=True)
-    thread.start()
+    dispatcher.start_listener(interface)
+    dispatcher.register_handler(_classify_and_record)
 
 
 def get_stats() -> dict:

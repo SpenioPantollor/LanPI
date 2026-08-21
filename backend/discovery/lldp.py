@@ -1,36 +1,28 @@
-"""Passive LLDP neighbor discovery on a given interface, via tcpdump.
+"""Passive LLDP neighbor discovery on a given interface.
 
-A background thread runs `tcpdump -w -` continuously and parses LLDP
-frames from its pcap-format stdout, caching the most recent neighbor
+Packets arrive via backend/capture/dispatcher.py's single shared
+tcpdump capture (v0.2.3 Foundation #3) rather than this module running
+its own dedicated tcpdump process -- see that module's docstring for
+why. _handle_packet() does the LLDP EtherType filter that used to be a
+BPF filter at the tcpdump level, then hands off to the same
+_parse_lldpdu() TLV parser as before, caching the most recent neighbor
 per interface. API handlers read the cache directly so requests never
 block waiting on the network.
 """
 
 from __future__ import annotations
 
-import shutil
 import struct
-import subprocess
 import threading
 import time
 
-_TCPDUMP_CANDIDATES = ["/usr/bin/tcpdump", "/usr/sbin/tcpdump", "tcpdump"]
+from backend.capture import dispatcher
+
 _LLDP_ETHERTYPE = 0x88CC
-_PCAP_GLOBAL_HEADER_LEN = 24
-_PCAP_RECORD_HEADER_LEN = 16
-_RESTART_DELAY_SECONDS = 5
 
 _lock = threading.Lock()
 _neighbors: dict[str, dict] = {}
 _started_interfaces: set[str] = set()
-
-
-def _find_tcpdump() -> str | None:
-    for candidate in _TCPDUMP_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
 
 
 def _parse_chassis_id(subtype: int, value: bytes) -> str:
@@ -105,61 +97,17 @@ def _parse_lldpdu(payload: bytes) -> dict:
     return neighbor
 
 
-def _read_exact(stream, count: int) -> bytes | None:
-    data = b""
-    while len(data) < count:
-        chunk = stream.read(count - len(data))
-        if not chunk:
-            return None
-        data += chunk
-    return data
-
-
-def _capture_loop(interface: str) -> None:
-    tcpdump = _find_tcpdump()
-    if not tcpdump:
+def _handle_packet(interface: str, packet: bytes) -> None:
+    if len(packet) < 14:
+        return
+    ethertype = struct.unpack("!H", packet[12:14])[0]
+    if ethertype != _LLDP_ETHERTYPE:
         return
 
-    while True:
-        proc = None
-        try:
-            proc = subprocess.Popen(
-                [tcpdump, "-i", interface, "-U", "-nn", "-w", "-",
-                 "ether", "proto", "0x88cc"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-            stdout = proc.stdout
-            if _read_exact(stdout, _PCAP_GLOBAL_HEADER_LEN) is None:
-                continue
-
-            while True:
-                record_header = _read_exact(stdout, _PCAP_RECORD_HEADER_LEN)
-                if record_header is None:
-                    break
-                _, _, incl_len, _ = struct.unpack("<IIII", record_header)
-                packet = _read_exact(stdout, incl_len)
-                if packet is None or len(packet) < 14:
-                    break
-
-                ethertype = struct.unpack("!H", packet[12:14])[0]
-                if ethertype != _LLDP_ETHERTYPE:
-                    continue
-
-                neighbor = _parse_lldpdu(packet[14:])
-                neighbor["last_seen"] = time.time()
-                with _lock:
-                    _neighbors[interface] = neighbor
-        except Exception:
-            pass
-        finally:
-            if proc is not None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-                except Exception:
-                    pass
-        time.sleep(_RESTART_DELAY_SECONDS)
+    neighbor = _parse_lldpdu(packet[14:])
+    neighbor["last_seen"] = time.time()
+    with _lock:
+        _neighbors[interface] = neighbor
 
 
 def start_listener(interface: str = "eth0") -> None:
@@ -167,8 +115,8 @@ def start_listener(interface: str = "eth0") -> None:
         if interface in _started_interfaces:
             return
         _started_interfaces.add(interface)
-    thread = threading.Thread(target=_capture_loop, args=(interface,), daemon=True)
-    thread.start()
+    dispatcher.start_listener(interface)
+    dispatcher.register_handler(lambda packet: _handle_packet(interface, packet))
 
 
 def get_neighbor(interface: str = "eth0", stale_after: float = 150.0) -> dict:

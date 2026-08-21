@@ -835,5 +835,6 @@ coarse long-term summary.
 [x] Port scanner (range scan -- distinct from the single TCP port test above)
 [ ] PROFINET (basic detection exists in the traffic analyzer above; full
     DCP discovery/diagnostics still planned)
-[ ] ModBus TCP
+[x] Modbus TCP (read-only: coils, discrete inputs, holding/input
+    registers; device templates for known meters)
 ```

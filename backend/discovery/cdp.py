@@ -1,8 +1,15 @@
-"""Passive CDP (Cisco Discovery Protocol) neighbor discovery, via tcpdump.
+"""Passive CDP (Cisco Discovery Protocol) neighbor discovery.
 
-Same background-thread-plus-cache architecture as lldp.py. CDP frames
-are 802.3 + LLC/SNAP (not a plain EtherType frame like LLDP), so the
-framing/parsing differs even though the overall approach doesn't:
+Packets arrive via backend/capture/dispatcher.py's single shared
+tcpdump capture (v0.2.3 Foundation #3) rather than this module running
+its own dedicated tcpdump process -- see that module's docstring for
+why. _handle_packet() does the CDP dest-MAC + LLC/SNAP filter that
+used to be a BPF filter at the tcpdump level, then hands off to the
+same _parse_cdp_payload() TLV parser as before.
+
+CDP frames are 802.3 + LLC/SNAP (not a plain EtherType frame like
+LLDP), so the framing/parsing differs even though the overall approach
+doesn't:
 
   [Ethernet: dst(6) src(6) len(2)] [LLC: dsap ssap ctrl] [SNAP: oui(3) pid(2)] [CDP payload]
 
@@ -12,31 +19,19 @@ includes this 4-byte header) value(length-4)).
 
 from __future__ import annotations
 
-import shutil
 import struct
-import subprocess
 import threading
 import time
 
-_TCPDUMP_CANDIDATES = ["/usr/bin/tcpdump", "/usr/sbin/tcpdump", "tcpdump"]
-_CDP_DEST_MAC = "01:00:0c:cc:cc:cc"
+from backend.capture import dispatcher
+
+_CDP_DEST_MAC = b"\x01\x00\x0c\xcc\xcc\xcc"
 _CDP_SNAP_OUI = b"\x00\x00\x0c"
 _CDP_SNAP_PID = b"\x20\x00"
-_PCAP_GLOBAL_HEADER_LEN = 24
-_PCAP_RECORD_HEADER_LEN = 16
-_RESTART_DELAY_SECONDS = 5
 
 _lock = threading.Lock()
 _neighbors: dict[str, dict] = {}
 _started_interfaces: set[str] = set()
-
-
-def _find_tcpdump() -> str | None:
-    for candidate in _TCPDUMP_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
 
 
 def _parse_address_tlv(value: bytes) -> str | None:
@@ -113,65 +108,24 @@ def _parse_cdp_payload(payload: bytes) -> dict:
     return neighbor
 
 
-def _read_exact(stream, count: int) -> bytes | None:
-    data = b""
-    while len(data) < count:
-        chunk = stream.read(count - len(data))
-        if not chunk:
-            return None
-        data += chunk
-    return data
-
-
-def _capture_loop(interface: str) -> None:
-    tcpdump = _find_tcpdump()
-    if not tcpdump:
+def _handle_packet(interface: str, packet: bytes) -> None:
+    if len(packet) < 22:
+        return
+    if packet[0:6] != _CDP_DEST_MAC:
         return
 
-    while True:
-        proc = None
-        try:
-            proc = subprocess.Popen(
-                [tcpdump, "-i", interface, "-U", "-nn", "-w", "-",
-                 "ether", "dst", _CDP_DEST_MAC],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-            stdout = proc.stdout
-            if _read_exact(stdout, _PCAP_GLOBAL_HEADER_LEN) is None:
-                continue
+    dsap, ssap, control = packet[14], packet[15], packet[16]
+    if dsap != 0xAA or ssap != 0xAA or control != 0x03:
+        return
+    oui = packet[17:20]
+    pid = packet[20:22]
+    if oui != _CDP_SNAP_OUI or pid != _CDP_SNAP_PID:
+        return
 
-            while True:
-                record_header = _read_exact(stdout, _PCAP_RECORD_HEADER_LEN)
-                if record_header is None:
-                    break
-                _, _, incl_len, _ = struct.unpack("<IIII", record_header)
-                packet = _read_exact(stdout, incl_len)
-                if packet is None or len(packet) < 22:
-                    continue
-
-                dsap, ssap, control = packet[14], packet[15], packet[16]
-                if dsap != 0xAA or ssap != 0xAA or control != 0x03:
-                    continue
-                oui = packet[17:20]
-                pid = packet[20:22]
-                if oui != _CDP_SNAP_OUI or pid != _CDP_SNAP_PID:
-                    continue
-
-                neighbor = _parse_cdp_payload(packet[22:])
-                neighbor["last_seen"] = time.time()
-                with _lock:
-                    _neighbors[interface] = neighbor
-        except Exception:
-            pass
-        finally:
-            if proc is not None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-                except Exception:
-                    pass
-        time.sleep(_RESTART_DELAY_SECONDS)
+    neighbor = _parse_cdp_payload(packet[22:])
+    neighbor["last_seen"] = time.time()
+    with _lock:
+        _neighbors[interface] = neighbor
 
 
 def start_listener(interface: str = "eth0") -> None:
@@ -179,8 +133,8 @@ def start_listener(interface: str = "eth0") -> None:
         if interface in _started_interfaces:
             return
         _started_interfaces.add(interface)
-    thread = threading.Thread(target=_capture_loop, args=(interface,), daemon=True)
-    thread.start()
+    dispatcher.start_listener(interface)
+    dispatcher.register_handler(lambda packet: _handle_packet(interface, packet))
 
 
 def get_neighbor(interface: str = "eth0", stale_after: float = 150.0) -> dict:

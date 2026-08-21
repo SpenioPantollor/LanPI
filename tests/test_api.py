@@ -31,8 +31,13 @@ def test_status_reports_version_from_version_file():
     response = client.get("/api/status")
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"hostname", "platform", "lanpi_version", "backend_uptime_seconds"}
+    assert set(body) == {
+        "hostname", "platform", "lanpi_version", "backend_uptime_seconds", "capture_dispatcher",
+    }
     assert body["lanpi_version"] != "unknown"
+    assert set(body["capture_dispatcher"]) == {
+        "tcpdump_available", "capture_running", "last_packet_at", "seconds_since_last_packet",
+    }
 
 
 def test_modbus_read_rejects_bad_function_code_with_200_not_500():

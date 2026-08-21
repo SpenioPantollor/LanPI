@@ -1,7 +1,13 @@
-"""Passive MNDP (MikroTik Neighbor Discovery Protocol) discovery, via tcpdump.
+"""Passive MNDP (MikroTik Neighbor Discovery Protocol) discovery.
 
-Same background-thread-plus-cache architecture as lldp.py/cdp.py. MNDP
-is a UDP broadcast (port 5678), not an L2 EtherType/LLC frame like
+Packets arrive via backend/capture/dispatcher.py's single shared
+tcpdump capture (v0.2.3 Foundation #3) rather than this module running
+its own dedicated tcpdump process -- see that module's docstring for
+why. _handle_packet() does the IPv4/UDP-port-5678 filter that used to
+be a BPF filter at the tcpdump level, then hands off to the same
+_parse_mndp_payload() TLV parser as before.
+
+MNDP is a UDP broadcast (port 5678), not an L2 EtherType/LLC frame like
 LLDP/CDP, so the framing includes a full IPv4 + UDP header before the
 MNDP payload:
 
@@ -19,29 +25,17 @@ treat as best-effort pending live confirmation against a real router.
 
 from __future__ import annotations
 
-import shutil
 import struct
-import subprocess
 import threading
 import time
 
-_TCPDUMP_CANDIDATES = ["/usr/bin/tcpdump", "/usr/sbin/tcpdump", "tcpdump"]
+from backend.capture import dispatcher
+
 _MNDP_PORT = 5678
-_PCAP_GLOBAL_HEADER_LEN = 24
-_PCAP_RECORD_HEADER_LEN = 16
-_RESTART_DELAY_SECONDS = 5
 
 _lock = threading.Lock()
 _neighbors: dict[str, dict] = {}
 _started_interfaces: set[str] = set()
-
-
-def _find_tcpdump() -> str | None:
-    for candidate in _TCPDUMP_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
 
 
 def _parse_mndp_payload(payload: bytes) -> dict:
@@ -91,66 +85,30 @@ def _parse_mndp_payload(payload: bytes) -> dict:
     return neighbor
 
 
-def _read_exact(stream, count: int) -> bytes | None:
-    data = b""
-    while len(data) < count:
-        chunk = stream.read(count - len(data))
-        if not chunk:
-            return None
-        data += chunk
-    return data
-
-
-def _capture_loop(interface: str) -> None:
-    tcpdump = _find_tcpdump()
-    if not tcpdump:
+def _handle_packet(interface: str, packet: bytes) -> None:
+    if len(packet) < 14 + 20 + 8:
+        return
+    ethertype = struct.unpack("!H", packet[12:14])[0]
+    if ethertype != 0x0800:  # IPv4
+        return
+    ip_header_len = (packet[14] & 0x0F) * 4
+    ip_proto = packet[14 + 9]
+    if ip_proto != 17:  # UDP
+        return
+    udp_offset = 14 + ip_header_len
+    mndp_offset = udp_offset + 8
+    if len(packet) < udp_offset + 4:
+        return
+    sport, dport = struct.unpack("!HH", packet[udp_offset:udp_offset + 4])
+    if _MNDP_PORT not in (sport, dport):
+        return
+    if len(packet) < mndp_offset:
         return
 
-    while True:
-        proc = None
-        try:
-            proc = subprocess.Popen(
-                [tcpdump, "-i", interface, "-U", "-nn", "-w", "-",
-                 "udp", "port", str(_MNDP_PORT)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-            stdout = proc.stdout
-            if _read_exact(stdout, _PCAP_GLOBAL_HEADER_LEN) is None:
-                continue
-
-            while True:
-                record_header = _read_exact(stdout, _PCAP_RECORD_HEADER_LEN)
-                if record_header is None:
-                    break
-                _, _, incl_len, _ = struct.unpack("<IIII", record_header)
-                packet = _read_exact(stdout, incl_len)
-                if packet is None or len(packet) < 14 + 20 + 8:
-                    continue
-
-                ethertype = struct.unpack("!H", packet[12:14])[0]
-                if ethertype != 0x0800:  # IPv4
-                    continue
-                ip_header_len = (packet[14] & 0x0F) * 4
-                udp_offset = 14 + ip_header_len
-                mndp_offset = udp_offset + 8
-                if len(packet) < mndp_offset:
-                    continue
-
-                neighbor = _parse_mndp_payload(packet[mndp_offset:])
-                neighbor["last_seen"] = time.time()
-                with _lock:
-                    _neighbors[interface] = neighbor
-        except Exception:
-            pass
-        finally:
-            if proc is not None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-                except Exception:
-                    pass
-        time.sleep(_RESTART_DELAY_SECONDS)
+    neighbor = _parse_mndp_payload(packet[mndp_offset:])
+    neighbor["last_seen"] = time.time()
+    with _lock:
+        _neighbors[interface] = neighbor
 
 
 def start_listener(interface: str = "eth0") -> None:
@@ -158,8 +116,8 @@ def start_listener(interface: str = "eth0") -> None:
         if interface in _started_interfaces:
             return
         _started_interfaces.add(interface)
-    thread = threading.Thread(target=_capture_loop, args=(interface,), daemon=True)
-    thread.start()
+    dispatcher.start_listener(interface)
+    dispatcher.register_handler(lambda packet: _handle_packet(interface, packet))
 
 
 def get_neighbor(interface: str = "eth0", stale_after: float = 150.0) -> dict:

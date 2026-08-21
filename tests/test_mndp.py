@@ -1,4 +1,7 @@
-"""Tests for backend/discovery/mndp.py's pure TLV parser (_parse_mndp_payload)."""
+"""Tests for backend/discovery/mndp.py: the pure TLV parser
+(_parse_mndp_payload) and _handle_packet(), the dispatcher-facing entry
+point that does the IPv4/UDP-port-5678 filter formerly done by a BPF
+filter at the tcpdump level (see backend/capture/dispatcher.py)."""
 import struct
 
 from backend.discovery import mndp
@@ -14,6 +17,15 @@ def _mac(s: str) -> bytes:
 
 def _mndp_payload(tlvs: bytes) -> bytes:
     return b"\x00\x00\x00\x01" + tlvs  # 2-byte header + 2-byte sequence number
+
+
+def _ip_udp_frame(sport: int, dport: int, payload: bytes, proto: int = 17, ethertype: int = 0x0800) -> bytes:
+    eth = b"\x00" * 6 + b"\x11" * 6 + struct.pack("!H", ethertype)
+    ip_header = bytearray(20)
+    ip_header[0] = 0x45  # version 4, IHL 5 (20 bytes)
+    ip_header[9] = proto
+    udp_header = struct.pack("!HHHH", sport, dport, 8 + len(payload), 0)
+    return eth + bytes(ip_header) + udp_header + payload
 
 
 def test_parses_mac_identity_and_versions():
@@ -57,3 +69,39 @@ def test_ipv4_address():
 def test_too_short_payload_returns_all_none():
     neighbor = mndp._parse_mndp_payload(b"\x00\x00")
     assert all(v is None for v in neighbor.values())
+
+
+def test_handle_packet_ignores_non_ipv4_ethertype():
+    mndp._neighbors.clear()
+    packet = _ip_udp_frame(12345, mndp._MNDP_PORT, _mndp_payload(b""), ethertype=0x86DD)
+
+    mndp._handle_packet("eth0", packet)
+
+    assert mndp._neighbors == {}
+
+
+def test_handle_packet_ignores_non_udp_protocol():
+    mndp._neighbors.clear()
+    packet = _ip_udp_frame(12345, mndp._MNDP_PORT, _mndp_payload(b""), proto=6)  # TCP
+
+    mndp._handle_packet("eth0", packet)
+
+    assert mndp._neighbors == {}
+
+
+def test_handle_packet_ignores_wrong_port():
+    mndp._neighbors.clear()
+    packet = _ip_udp_frame(12345, 9999, _mndp_payload(b""))
+
+    mndp._handle_packet("eth0", packet)
+
+    assert mndp._neighbors == {}
+
+
+def test_handle_packet_parses_and_caches_an_mndp_frame():
+    mndp._neighbors.clear()
+    packet = _ip_udp_frame(12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"office-router")))
+
+    mndp._handle_packet("eth0", packet)
+
+    assert mndp._neighbors["eth0"]["identity"] == "office-router"

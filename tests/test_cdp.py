@@ -1,5 +1,8 @@
-"""Tests for backend/discovery/cdp.py's pure TLV parser (_parse_cdp_payload)
-and its address-TLV sub-parser (_parse_address_tlv)."""
+"""Tests for backend/discovery/cdp.py: the pure TLV parser
+(_parse_cdp_payload), its address-TLV sub-parser (_parse_address_tlv),
+and _handle_packet(), the dispatcher-facing entry point that does the
+dest-MAC + LLC/SNAP filter formerly done by a BPF filter at the
+tcpdump level (see backend/capture/dispatcher.py)."""
 import struct
 
 from backend.discovery import cdp
@@ -8,6 +11,14 @@ from backend.discovery import cdp
 def _tlv(tlv_type: int, value: bytes) -> bytes:
     length = 4 + len(value)  # CDP TLV length includes its own 4-byte header
     return struct.pack("!HH", tlv_type, length) + value
+
+
+def _cdp_frame(cdp_payload: bytes) -> bytes:
+    dst = cdp._CDP_DEST_MAC
+    src = b"\x11" * 6
+    length = b"\x00\x00"  # 802.3 length field, unused by the parser
+    llc_snap = b"\xaa\xaa\x03" + cdp._CDP_SNAP_OUI + cdp._CDP_SNAP_PID
+    return dst + src + length + llc_snap + cdp_payload
 
 
 def _address_tlv_value(addresses: list[bytes]) -> bytes:
@@ -68,3 +79,30 @@ def test_too_short_payload_returns_all_none():
 
 def test_address_tlv_with_zero_addresses_returns_none():
     assert cdp._parse_address_tlv(struct.pack("!I", 0)) is None
+
+
+def test_handle_packet_ignores_wrong_dest_mac():
+    cdp._neighbors.clear()
+    packet = b"\x22" * 6 + b"\x11" * 6 + b"\x00\x00" + b"\xaa\xaa\x03" + cdp._CDP_SNAP_OUI + cdp._CDP_SNAP_PID
+
+    cdp._handle_packet("eth0", packet)
+
+    assert cdp._neighbors == {}
+
+
+def test_handle_packet_ignores_non_snap_llc():
+    cdp._neighbors.clear()
+    packet = cdp._CDP_DEST_MAC + b"\x11" * 6 + b"\x00\x00" + b"\x00\x00\x00" + cdp._CDP_SNAP_OUI + cdp._CDP_SNAP_PID
+
+    cdp._handle_packet("eth0", packet)
+
+    assert cdp._neighbors == {}
+
+
+def test_handle_packet_parses_and_caches_a_cdp_frame():
+    cdp._neighbors.clear()
+    packet = _cdp_frame(_cdp_payload(_tlv(0x0001, b"switch01")))
+
+    cdp._handle_packet("eth0", packet)
+
+    assert cdp._neighbors["eth0"]["device_id"] == "switch01"
