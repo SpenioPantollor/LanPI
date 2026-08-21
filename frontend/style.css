@@ -272,6 +272,72 @@ button:disabled {
   line-height: 1.4;
 }
 
+/* In-page sub-tabs (e.g. Modbus's Read/Scan/Monitor/Traffic) -- same
+   pill-button visual language as the top-level nav, but <button>-driven
+   panel switching within one page instead of navigating to another. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tabs button {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tabs button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.raw-view {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.raw-view pre {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.2s ease;
+}
+
 .card-footnote {
   margin: 0.75rem 0 0;
   font-size: 0.85rem;

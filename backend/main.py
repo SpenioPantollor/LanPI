@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.api.routes import TEST_PORT_INTERFACE, router as api_router
-from backend.capture import traffic_stats
+from backend.capture import modbus_traffic, traffic_stats
 from backend.discovery import cdp, lldp, mndp
 from backend.version import get_version
 
@@ -45,6 +45,7 @@ def _start_background_listeners() -> None:
     cdp.start_listener(TEST_PORT_INTERFACE)
     mndp.start_listener(TEST_PORT_INTERFACE)
     traffic_stats.start_listener(TEST_PORT_INTERFACE)
+    modbus_traffic.start_listener(TEST_PORT_INTERFACE)
 
 
 @app.exception_handler(StarletteHTTPException)

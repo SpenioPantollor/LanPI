@@ -68,6 +68,48 @@ def _register_response(transaction_id, unit_id, function_code, values):
     return struct.pack("!HHHB", transaction_id, 0, len(pdu) + 1, unit_id) + pdu
 
 
+def _run_fake_device_id_server(build_response) -> int:
+    """Like _run_fake_server, but for FC43/MEI14 requests -- a different
+    PDU shape from the read functions, and potentially more than one
+    request/response round-trip on the same connection if the device
+    signals "more follows". Hands each request to
+    build_response(transaction_id, unit_id, read_device_id_code,
+    object_id) -> bytes."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", 0))
+    port = server.getsockname()[1]
+    server.listen(1)
+
+    def handle():
+        server.settimeout(5)
+        try:
+            conn, _ = server.accept()
+        except socket.timeout:
+            server.close()
+            return
+        with conn:
+            while True:
+                header = _recv_exact(conn, 7)
+                if len(header) < 7:
+                    break
+                transaction_id, _protocol, length, unit_id = struct.unpack("!HHHB", header)
+                pdu = _recv_exact(conn, length - 1)
+                _fc, _mei, read_device_id_code, object_id = struct.unpack("!BBBB", pdu)
+                conn.sendall(build_response(transaction_id, unit_id, read_device_id_code, object_id))
+        server.close()
+
+    threading.Thread(target=handle, daemon=True).start()
+    return port
+
+
+def _device_id_response(transaction_id, unit_id, objects, more_follows=0x00, next_object_id=0x00):
+    body = struct.pack("!BBBBBB", 0x2B, 0x0E, 0x02, 0x02, more_follows, next_object_id) + bytes([len(objects)])
+    for obj_id, value in objects.items():
+        body += bytes([obj_id, len(value)]) + value
+    return struct.pack("!HHHB", transaction_id, 0, len(body) + 1, unit_id) + body
+
+
 def _exception_response(transaction_id, unit_id, function_code, exception_code):
     pdu = struct.pack("!BB", function_code | 0x80, exception_code)
     return struct.pack("!HHHB", transaction_id, 0, len(pdu) + 1, unit_id) + pdu
@@ -78,13 +120,14 @@ def test_reads_holding_registers():
         lambda tid, uid, fc, addr, qty: _register_response(tid, uid, fc, [1234, 5678])
     )
     result = modbus.read("127.0.0.1", unit_id=1, function_code=3, address=0, quantity=2, port=port)
-    assert result == {
-        "ok": True,
-        "function": "read_holding_registers",
-        "address": 0,
-        "quantity": 2,
-        "values": [1234, 5678],
-    }
+    assert result["ok"] is True
+    assert result["function"] == "read_holding_registers"
+    assert result["address"] == 0
+    assert result["quantity"] == 2
+    assert result["values"] == [1234, 5678]
+    assert result["response_time_ms"] >= 0
+    assert len(result["raw_request"]) == 24  # 7-byte MBAP + 5-byte read PDU, hex-encoded
+    assert len(result["raw_response"]) > 0
 
 
 def test_reads_coils_as_bits():
@@ -103,7 +146,10 @@ def test_modbus_exception_response_is_decoded():
         lambda tid, uid, fc, addr, qty: _exception_response(tid, uid, fc, 2)  # Illegal Data Address
     )
     result = modbus.read("127.0.0.1", unit_id=1, function_code=4, address=0, quantity=1, port=port)
-    assert result == {"ok": False, "message": "Modbus exception: Illegal Data Address"}
+    assert result["ok"] is False
+    assert result["message"] == "Modbus exception: Illegal Data Address"
+    assert result["response_time_ms"] >= 0
+    assert len(result["raw_response"]) > 0
 
 
 def test_unknown_exception_code_falls_back_to_generic_message():
@@ -111,7 +157,8 @@ def test_unknown_exception_code_falls_back_to_generic_message():
         lambda tid, uid, fc, addr, qty: _exception_response(tid, uid, fc, 99)
     )
     result = modbus.read("127.0.0.1", unit_id=1, function_code=3, address=0, quantity=1, port=port)
-    assert result == {"ok": False, "message": "Modbus exception: code 99"}
+    assert result["ok"] is False
+    assert result["message"] == "Modbus exception: code 99"
 
 
 def test_rejects_empty_host():
@@ -149,3 +196,52 @@ def test_no_eth0_address_returns_clear_message(monkeypatch):
     result = modbus.read("1.2.3.4", unit_id=1, function_code=3, address=0, quantity=1)
     assert result["ok"] is False
     assert "eth0 has no IP address" in result["message"]
+
+
+def test_device_identification_success():
+    objects = {0x00: b"Acme Corp", 0x01: b"AC-100", 0x05: b"Model X"}
+    port = _run_fake_device_id_server(lambda tid, uid, code, obj_id: _device_id_response(tid, uid, objects))
+
+    result = modbus.read_device_identification("127.0.0.1", unit_id=1, port=port)
+
+    assert result["ok"] is True
+    assert result["supported"] is True
+    assert result["objects"]["vendor_name"] == "Acme Corp"
+    assert result["objects"]["product_code"] == "AC-100"
+    assert result["objects"]["model_name"] == "Model X"
+    assert result["response_time_ms"] >= 0
+
+
+def test_device_identification_follows_more_follows_across_requests():
+    first = {0x00: b"Acme", 0x01: b"AC-1", 0x02: b"1.0"}
+    second = {0x03: b"http://acme.example", 0x04: b"Widget", 0x05: b"WX1", 0x06: b"App"}
+
+    def responder(tid, uid, code, obj_id):
+        if obj_id == 0x00:
+            return _device_id_response(tid, uid, first, more_follows=0xFF, next_object_id=0x03)
+        return _device_id_response(tid, uid, second)
+
+    port = _run_fake_device_id_server(responder)
+    result = modbus.read_device_identification("127.0.0.1", unit_id=1, port=port)
+
+    assert result["ok"] is True
+    assert result["objects"]["vendor_name"] == "Acme"
+    assert result["objects"]["vendor_url"] == "http://acme.example"
+    assert result["objects"]["user_application_name"] == "App"
+
+
+def test_device_identification_not_supported_is_distinguished_from_a_real_error():
+    def responder(tid, uid, code, obj_id):
+        pdu = struct.pack("!BB", 0x2B | 0x80, 1)  # Illegal Function
+        return struct.pack("!HHHB", tid, 0, len(pdu) + 1, uid) + pdu
+
+    port = _run_fake_device_id_server(responder)
+    result = modbus.read_device_identification("127.0.0.1", unit_id=1, port=port)
+
+    assert result["ok"] is False
+    assert result["supported"] is False
+    assert "not supported" in result["message"]
+
+
+def test_device_identification_rejects_empty_host():
+    assert modbus.read_device_identification("", unit_id=1) == {"ok": False, "message": "host is required"}

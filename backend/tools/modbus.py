@@ -22,6 +22,7 @@ from __future__ import annotations
 import socket
 import struct
 import threading
+import time
 
 from backend.network import eth0_mode
 
@@ -47,6 +48,15 @@ _EXCEPTION_MESSAGES = {
     8: "Memory Parity Error",
     10: "Gateway Path Unavailable",
     11: "Gateway Target Device Failed to Respond",
+}
+_DEVICE_ID_OBJECT_NAMES = {
+    0x00: "vendor_name",
+    0x01: "product_code",
+    0x02: "major_minor_revision",
+    0x03: "vendor_url",
+    0x04: "product_name",
+    0x05: "model_name",
+    0x06: "user_application_name",
 }
 
 _transaction_lock = threading.Lock()
@@ -119,6 +129,9 @@ def read(
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
+    started = time.monotonic()
+    header = None
+    body = None
     try:
         sock.bind((source_ip, 0))
         sock.connect((host, port))
@@ -126,22 +139,26 @@ def read(
 
         header = _recv_exact(sock, 7)
         if header is None:
-            return {"ok": False, "message": "no response (connection closed)"}
+            return _read_error("no response (connection closed)", request, started)
         resp_transaction_id, _resp_protocol_id, resp_length, _resp_unit_id = struct.unpack("!HHHB", header)
         if resp_transaction_id != transaction_id:
-            return {"ok": False, "message": "unexpected transaction ID in response"}
+            return _read_error("unexpected transaction ID in response", request, started, header)
 
         body = _recv_exact(sock, resp_length - 1)
         if body is None or len(body) < 1:
-            return {"ok": False, "message": "incomplete response"}
+            return _read_error("incomplete response", request, started, header, body)
     except socket.timeout:
-        return {"ok": False, "message": "timeout -- no response from device"}
+        return _read_error("timeout -- no response from device", request, started, header, body)
     except ConnectionRefusedError:
-        return {"ok": False, "message": f"connection refused -- port {port} not open"}
+        return _read_error(f"connection refused -- port {port} not open", request, started, header, body)
     except OSError as exc:
-        return {"ok": False, "message": str(exc)}
+        return _read_error(str(exc), request, started, header, body)
     finally:
         sock.close()
+
+    response_time_ms = round((time.monotonic() - started) * 1000, 1)
+    raw_request = request.hex()
+    raw_response = (header + body).hex()
 
     resp_function_code = body[0]
     if resp_function_code & 0x80:
@@ -149,11 +166,14 @@ def read(
         return {
             "ok": False,
             "message": f"Modbus exception: {_EXCEPTION_MESSAGES.get(exception_code, f'code {exception_code}')}",
+            "response_time_ms": response_time_ms,
+            "raw_request": raw_request,
+            "raw_response": raw_response,
         }
     if resp_function_code != function_code:
-        return {"ok": False, "message": "unexpected function code in response"}
+        return _read_error("unexpected function code in response", request, started, header, body)
     if len(body) < 2:
-        return {"ok": False, "message": "malformed response"}
+        return _read_error("malformed response", request, started, header, body)
 
     byte_count = body[1]
     data = body[2:2 + byte_count]
@@ -169,4 +189,149 @@ def read(
         "address": address,
         "quantity": quantity,
         "values": values,
+        "response_time_ms": response_time_ms,
+        "raw_request": raw_request,
+        "raw_response": raw_response,
+    }
+
+
+def _read_error(
+    message: str,
+    request: bytes,
+    started: float,
+    header: bytes | None = None,
+    body: bytes | None = None,
+) -> dict:
+    """Shared error-return shape for read()/read_device_identification()
+    once a request has actually gone out on the wire -- always includes
+    timing and whatever raw bytes were actually seen (even a partial or
+    malformed response is useful in the raw request/response view),
+    unlike the pure-input-validation returns earlier in each function,
+    which never touched the network and so have nothing to show."""
+    raw_response = None
+    if header is not None:
+        raw_response = (header + (body or b"")).hex()
+    return {
+        "ok": False,
+        "message": message,
+        "response_time_ms": round((time.monotonic() - started) * 1000, 1),
+        "raw_request": request.hex(),
+        "raw_response": raw_response,
+    }
+
+
+def read_device_identification(host: str, unit_id: int, port: int = 502, timeout: float = 3.0) -> dict:
+    """Modbus Read Device Identification (FC43 / MEI type 14).
+
+    Not every device supports this -- a device that doesn't returns an
+    Illegal Function exception, same as any other unsupported function
+    code. That's reported as {"ok": False, "supported": False, ...}
+    rather than a generic communication failure, so the UI can show
+    "not supported" instead of implying something's wrong with the
+    connection.
+
+    Requests "regular" access (read device ID code 2), which asks for
+    the fuller object set (vendor URL/product name/model name/user app
+    name, in addition to vendor name/product code/revision). Devices
+    that only implement "basic" access still respond fine -- they just
+    return the smaller object set they actually have, reflected in the
+    response's own conformity level/more-follows fields, which this
+    follows to collect every object across as many requests as the
+    device says are needed (object IDs are exposed as their standard
+    names where known, e.g. "vendor_name", falling back to
+    "object_<n>" for vendor-specific extended objects).
+    """
+    host = (host or "").strip()
+    if not host:
+        return {"ok": False, "message": "host is required"}
+    if not (0 <= unit_id <= 255):
+        return {"ok": False, "message": "unit ID must be 0-255"}
+    if not (1 <= port <= 65535):
+        return {"ok": False, "message": "port must be 1-65535"}
+
+    source_ip = _eth0_source_ip()
+    if not source_ip:
+        return {
+            "ok": False,
+            "message": "eth0 has no IP address -- switch to DHCP or Static mode first "
+                       "(Passive mode has no source address to connect from)",
+        }
+
+    objects: dict[str, str] = {}
+    object_id = 0x00
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    started = time.monotonic()
+    try:
+        sock.bind((source_ip, 0))
+        sock.connect((host, port))
+
+        # A misbehaving device could set more-follows forever without
+        # actually advancing next-object-id -- cap iterations so that
+        # can't hang this in a loop.
+        for _ in range(8):
+            transaction_id = _next_transaction_id()
+            pdu = struct.pack("!BBBB", 0x2B, 0x0E, 0x02, object_id)
+            mbap = struct.pack("!HHHB", transaction_id, 0, len(pdu) + 1, unit_id)
+            request = mbap + pdu
+            sock.sendall(request)
+
+            header = _recv_exact(sock, 7)
+            if header is None:
+                return _read_error("no response (connection closed)", request, started)
+            resp_transaction_id, _protocol, resp_length, _unit = struct.unpack("!HHHB", header)
+            if resp_transaction_id != transaction_id:
+                return _read_error("unexpected transaction ID in response", request, started, header)
+
+            body = _recv_exact(sock, resp_length - 1)
+            if body is None or len(body) < 1:
+                return _read_error("incomplete response", request, started, header, body)
+
+            resp_function_code = body[0]
+            if resp_function_code & 0x80:
+                exception_code = body[1] if len(body) > 1 else None
+                return {
+                    "ok": False,
+                    "supported": False,
+                    "message": "Device Identification not supported ("
+                               f"{_EXCEPTION_MESSAGES.get(exception_code, f'code {exception_code}')})",
+                    "response_time_ms": round((time.monotonic() - started) * 1000, 1),
+                    "raw_request": request.hex(),
+                    "raw_response": (header + body).hex(),
+                }
+            if resp_function_code != 0x2B or len(body) < 7 or body[1] != 0x0E:
+                return _read_error("malformed device identification response", request, started, header, body)
+
+            more_follows = body[4]
+            next_object_id = body[5]
+            number_of_objects = body[6]
+            offset = 7
+            for _ in range(number_of_objects):
+                if offset + 2 > len(body):
+                    break
+                obj_id = body[offset]
+                obj_len = body[offset + 1]
+                offset += 2
+                obj_value = body[offset:offset + obj_len]
+                offset += obj_len
+                name = _DEVICE_ID_OBJECT_NAMES.get(obj_id, f"object_{obj_id}")
+                objects[name] = obj_value.decode("ascii", errors="replace")
+
+            if more_follows != 0xFF or next_object_id == object_id:
+                break
+            object_id = next_object_id
+    except socket.timeout:
+        return _read_error("timeout -- no response from device", request, started)
+    except ConnectionRefusedError:
+        return _read_error(f"connection refused -- port {port} not open", request, started)
+    except OSError as exc:
+        return _read_error(str(exc), request, started)
+    finally:
+        sock.close()
+
+    return {
+        "ok": True,
+        "supported": True,
+        "objects": objects,
+        "response_time_ms": round((time.monotonic() - started) * 1000, 1),
     }

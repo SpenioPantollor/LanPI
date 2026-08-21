@@ -91,3 +91,67 @@ def test_modbus_templates_list_returns_a_list_of_dicts():
 def test_tcp_test_requires_host_and_port():
     response = client.post("/api/tools/tcp-test", json={})
     assert response.status_code == 422
+
+
+def test_modbus_decode_endpoint():
+    response = client.post("/api/tools/modbus/decode", json={"values": [1234], "byte_order": "ABCD"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["uint16"] == 1234
+    assert "uint32" not in body
+
+
+def test_modbus_device_id_requires_host():
+    response = client.post("/api/tools/modbus/device-id", json={"unit_id": 1})
+    assert response.status_code == 422
+
+
+def test_modbus_unit_scan_start_rejects_bad_range():
+    response = client.post(
+        "/api/tools/modbus/unit-scan/start",
+        json={"host": "1.2.3.4", "start_unit": 10, "end_unit": 5},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+
+
+def test_modbus_unit_scan_status_and_stop_when_idle():
+    assert client.get("/api/tools/modbus/unit-scan/status").status_code == 200
+    stop_response = client.post("/api/tools/modbus/unit-scan/stop")
+    assert stop_response.status_code == 200
+    assert stop_response.json() == {"ok": True, "message": "no scan running"}
+
+
+def test_modbus_register_scan_start_rejects_bad_register_type():
+    response = client.post(
+        "/api/tools/modbus/register-scan/start",
+        json={
+            "host": "1.2.3.4", "register_type": "bogus", "unit_id": 1,
+            "start_address": 0, "end_address": 10,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is False
+
+
+def test_modbus_poll_start_rejects_bad_interval():
+    response = client.post(
+        "/api/tools/modbus/poll/start",
+        json={
+            "host": "1.2.3.4", "unit_id": 1, "function_code": 3, "address": 0, "quantity": 1,
+            "interval_ms": 1,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is False
+
+
+def test_modbus_traffic_get_and_reset():
+    # Reset first -- module-level state, not test-order-independent
+    # otherwise, since another test file might have populated it.
+    assert client.post("/api/tools/modbus/traffic/reset").json()["ok"] is True
+
+    response = client.get("/api/tools/modbus/traffic")
+    assert response.status_code == 200
+    assert response.json() == {"relationships": []}

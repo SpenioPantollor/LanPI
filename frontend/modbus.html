@@ -15,7 +15,7 @@
     <div class="header-row">
       <div>
         <h1>Modbus TCP</h1>
-        <p class="subtitle">Read coils / registers on eth0</p>
+        <p class="subtitle">Read-only Modbus TCP diagnostics on eth0</p>
       </div>
       <nav>
         <a href="/">Dashboard</a>
@@ -29,87 +29,322 @@
   </header>
 
   <main class="stacked-cards">
-    <section class="card">
-      <h2>Read</h2>
-      <p class="card-hint">
-        Sourced from eth0 &mdash; needs DHCP or Static mode.
-        Read-only: coils, discrete inputs, holding registers, input
-        registers (function codes 1-4). No write support by design
-        &mdash; LanPi defaults to passive, non-disruptive diagnostics.
-      </p>
-      <form id="modbus-form">
-        <label for="modbus-host">Host or IP</label>
-        <input id="modbus-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
-        <label for="modbus-port">Port</label>
-        <input id="modbus-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
-        <label for="modbus-unit">Unit ID</label>
-        <input id="modbus-unit" type="number" min="0" max="255" placeholder="1" autocomplete="off" />
-        <label for="modbus-function">Function</label>
-        <select id="modbus-function">
-          <option value="1">01 - Read Coils</option>
-          <option value="2">02 - Read Discrete Inputs</option>
-          <option value="3" selected>03 - Read Holding Registers</option>
-          <option value="4">04 - Read Input Registers</option>
-        </select>
-        <label for="modbus-address">Starting Address</label>
-        <input id="modbus-address" type="number" min="0" max="65535" placeholder="0" autocomplete="off" />
-        <label for="modbus-quantity">Quantity</label>
-        <input id="modbus-quantity" type="number" min="1" max="2000" placeholder="10" autocomplete="off" />
-        <label for="modbus-interval">Auto-refresh interval, seconds (blank = single read)</label>
-        <input id="modbus-interval" type="number" min="1" max="3600" placeholder="blank = single read" autocomplete="off" />
-        <div class="button-row">
-          <button id="modbus-read-btn" type="submit">Read</button>
-          <button id="modbus-stop-btn" type="button" disabled>Stop</button>
-        </div>
-      </form>
-      <p id="modbus-status" class="card-hint"></p>
-      <div class="table-scroll">
-        <table id="modbus-results" class="data-table" hidden>
-          <thead>
-            <tr>
-              <th>Address</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody id="modbus-results-body"></tbody>
-        </table>
-      </div>
-    </section>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="read">Read</button>
+      <button type="button" class="tab-btn" data-tab="scan">Scan</button>
+      <button type="button" class="tab-btn" data-tab="monitor">Monitor</button>
+      <button type="button" class="tab-btn" data-tab="traffic">Traffic</button>
+    </div>
 
-    <section class="card">
-      <h2>Device Templates</h2>
-      <p class="card-hint">
-        Named presets for known device types (unit ID + a labeled
-        register list), so a known meter/device doesn't need its
-        function code/address/quantity looked up by hand every time.
-        Edited directly in <code>config/modbus_templates.json</code>
-        on the Pi (not this page) &mdash; see the repo's
-        <code>config/modbus_templates.example.json</code> for the
-        format and a placeholder example.
-      </p>
-      <form id="modbus-template-form">
-        <label for="modbus-template-select">Template</label>
-        <select id="modbus-template-select"><option value="">Loading...</option></select>
-        <label for="modbus-template-host">Host or IP</label>
-        <input id="modbus-template-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
-        <label for="modbus-template-port">Port</label>
-        <input id="modbus-template-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
-        <button id="modbus-template-read-btn" type="submit">Read All</button>
-      </form>
-      <p id="modbus-template-status" class="card-hint"></p>
-      <div class="table-scroll">
-        <table id="modbus-template-results" class="data-table" hidden>
-          <thead>
-            <tr>
-              <th>Label</th>
-              <th>Address</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody id="modbus-template-results-body"></tbody>
-        </table>
-      </div>
-    </section>
+    <div id="tab-read" class="tab-panel">
+      <section class="card">
+        <h2>Read</h2>
+        <p class="card-hint">
+          Sourced from eth0 &mdash; needs DHCP or Static mode.
+          Read-only: coils, discrete inputs, holding registers, input
+          registers (function codes 1-4). No write support by design
+          &mdash; LanPi defaults to passive, non-disruptive diagnostics.
+        </p>
+        <form id="modbus-form">
+          <label for="modbus-host">Host or IP</label>
+          <input id="modbus-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+          <label for="modbus-port">Port</label>
+          <input id="modbus-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+          <label for="modbus-unit">Unit ID</label>
+          <input id="modbus-unit" type="number" min="0" max="255" placeholder="1" autocomplete="off" />
+          <label for="modbus-function">Function</label>
+          <select id="modbus-function">
+            <option value="1">01 - Read Coils</option>
+            <option value="2">02 - Read Discrete Inputs</option>
+            <option value="3" selected>03 - Read Holding Registers</option>
+            <option value="4">04 - Read Input Registers</option>
+          </select>
+          <label for="modbus-address">Starting Address</label>
+          <input id="modbus-address" type="number" min="0" max="65535" placeholder="0" autocomplete="off" />
+          <label for="modbus-quantity">Quantity</label>
+          <input id="modbus-quantity" type="number" min="1" max="2000" placeholder="10" autocomplete="off" />
+          <label for="modbus-interval">Auto-refresh interval, seconds (blank = single read)</label>
+          <input id="modbus-interval" type="number" min="1" max="3600" placeholder="blank = single read" autocomplete="off" />
+          <div class="button-row">
+            <button id="modbus-read-btn" type="submit">Read</button>
+            <button id="modbus-stop-btn" type="button" disabled>Stop</button>
+            <button id="modbus-device-id-btn" type="button">Device Info</button>
+          </div>
+        </form>
+        <p id="modbus-status" class="card-hint"></p>
+        <div class="table-scroll">
+          <table id="modbus-results" class="data-table" hidden>
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="modbus-results-body"></tbody>
+          </table>
+        </div>
+
+        <div id="modbus-decode-panel" hidden>
+          <h3>Data Interpretation</h3>
+          <form id="modbus-decode-form">
+            <label for="modbus-decode-index">Register (pair starts here)</label>
+            <select id="modbus-decode-index"></select>
+            <label for="modbus-decode-order">Byte order (32-bit)</label>
+            <select id="modbus-decode-order">
+              <option value="ABCD" selected>ABCD</option>
+              <option value="BADC">BADC</option>
+              <option value="CDAB">CDAB</option>
+              <option value="DCBA">DCBA</option>
+            </select>
+            <button type="submit">Interpret</button>
+          </form>
+          <div class="table-scroll">
+            <table id="modbus-decode-results" class="data-table" hidden>
+              <tbody id="modbus-decode-results-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <details class="raw-view" id="modbus-raw-view" hidden>
+          <summary>Raw request/response</summary>
+          <p class="card-hint" id="modbus-raw-timing"></p>
+          <pre id="modbus-raw-tx"></pre>
+          <pre id="modbus-raw-rx"></pre>
+        </details>
+      </section>
+
+      <section class="card">
+        <h2>Device Identification</h2>
+        <p class="card-hint">
+          FC43 / MEI type 14. Uses the Host/Port/Unit ID above. Not
+          every device supports this -- an unsupported device is shown
+          distinctly from a real communication failure.
+        </p>
+        <p id="modbus-device-id-status" class="card-hint"></p>
+        <div class="table-scroll">
+          <table id="modbus-device-id-results" class="data-table" hidden>
+            <tbody id="modbus-device-id-results-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Device Templates</h2>
+        <p class="card-hint">
+          Named presets for known device types (unit ID + a labeled
+          register list), so a known meter/device doesn't need its
+          function code/address/quantity looked up by hand every time.
+          Edited directly in <code>config/modbus_templates.json</code>
+          on the Pi (not this page) &mdash; see the repo's
+          <code>config/modbus_templates.example.json</code> for the
+          format and a placeholder example.
+        </p>
+        <form id="modbus-template-form">
+          <label for="modbus-template-select">Template</label>
+          <select id="modbus-template-select"><option value="">Loading...</option></select>
+          <label for="modbus-template-host">Host or IP</label>
+          <input id="modbus-template-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+          <label for="modbus-template-port">Port</label>
+          <input id="modbus-template-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+          <button id="modbus-template-read-btn" type="submit">Read All</button>
+        </form>
+        <p id="modbus-template-status" class="card-hint"></p>
+        <div class="table-scroll">
+          <table id="modbus-template-results" class="data-table" hidden>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Address</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="modbus-template-results-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="tab-scan" class="tab-panel" hidden>
+      <section class="card">
+        <h2>Unit ID Scan</h2>
+        <p class="card-hint">
+          Probes a range of unit IDs with an FC3 request -- useful
+          behind a Modbus TCP-to-RTU gateway serving several devices.
+          A Modbus exception still counts as "responding": it proves a
+          device is there, even if it rejected this specific probe.
+          Sequential, one probe at a time -- not a burst.
+        </p>
+        <form id="modbus-unit-scan-form">
+          <label for="unit-scan-host">Host or IP</label>
+          <input id="unit-scan-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+          <label for="unit-scan-port">Port</label>
+          <input id="unit-scan-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+          <label for="unit-scan-start">Start Unit ID</label>
+          <input id="unit-scan-start" type="number" min="0" max="255" placeholder="1" autocomplete="off" />
+          <label for="unit-scan-end">End Unit ID</label>
+          <input id="unit-scan-end" type="number" min="0" max="255" placeholder="20" autocomplete="off" />
+          <label for="unit-scan-timeout">Timeout, seconds</label>
+          <input id="unit-scan-timeout" type="number" min="0.1" max="10" step="0.1" placeholder="1.0" autocomplete="off" />
+          <div class="button-row">
+            <button id="unit-scan-start-btn" type="submit">Start</button>
+            <button id="unit-scan-stop-btn" type="button" disabled>Stop</button>
+          </div>
+        </form>
+        <p id="unit-scan-status" class="card-hint"></p>
+        <div class="progress-bar"><div id="unit-scan-progress" class="progress-bar-fill"></div></div>
+        <div class="table-scroll">
+          <table id="unit-scan-results" class="data-table" hidden>
+            <thead>
+              <tr>
+                <th>Unit ID</th>
+                <th>Status</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="unit-scan-results-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Register Range Scan</h2>
+        <p class="card-hint">
+          Finds which addresses are readable with no register map to
+          go on -- probes whole blocks at once, only narrowing down
+          (bisecting) where a block fails, so it doesn't cost one
+          request per register. Capped at 10000 addresses per scan.
+        </p>
+        <form id="modbus-register-scan-form">
+          <label for="register-scan-host">Host or IP</label>
+          <input id="register-scan-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+          <label for="register-scan-port">Port</label>
+          <input id="register-scan-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+          <label for="register-scan-unit">Unit ID</label>
+          <input id="register-scan-unit" type="number" min="0" max="255" placeholder="1" autocomplete="off" />
+          <label for="register-scan-type">Register Type</label>
+          <select id="register-scan-type">
+            <option value="coils">Coils</option>
+            <option value="discrete_inputs">Discrete Inputs</option>
+            <option value="holding_registers" selected>Holding Registers</option>
+            <option value="input_registers">Input Registers</option>
+          </select>
+          <label for="register-scan-start">Start Address</label>
+          <input id="register-scan-start" type="number" min="0" max="65535" placeholder="0" autocomplete="off" />
+          <label for="register-scan-end">End Address</label>
+          <input id="register-scan-end" type="number" min="0" max="65535" placeholder="99" autocomplete="off" />
+          <label for="register-scan-timeout">Timeout, seconds</label>
+          <input id="register-scan-timeout" type="number" min="0.1" max="10" step="0.1" placeholder="1.0" autocomplete="off" />
+          <div class="button-row">
+            <button id="register-scan-start-btn" type="submit">Start</button>
+            <button id="register-scan-stop-btn" type="button" disabled>Stop</button>
+          </div>
+        </form>
+        <p id="register-scan-status" class="card-hint"></p>
+        <div class="progress-bar"><div id="register-scan-progress" class="progress-bar-fill"></div></div>
+        <div class="table-scroll">
+          <table id="register-scan-results" class="data-table" hidden>
+            <thead>
+              <tr>
+                <th>Range</th>
+                <th>Readable</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="register-scan-results-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="tab-monitor" class="tab-panel" hidden>
+      <section class="card">
+        <h2>Live Register Polling</h2>
+        <p class="card-hint">
+          Repeatedly reads one register (or block) on an interval,
+          tracking response-time and success/timeout/exception
+          statistics -- helps spot an unstable or overloaded device
+          that a single read wouldn't reveal.
+        </p>
+        <form id="modbus-poll-form">
+          <label for="poll-host">Host or IP</label>
+          <input id="poll-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+          <label for="poll-port">Port</label>
+          <input id="poll-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+          <label for="poll-unit">Unit ID</label>
+          <input id="poll-unit" type="number" min="0" max="255" placeholder="1" autocomplete="off" />
+          <label for="poll-function">Function</label>
+          <select id="poll-function">
+            <option value="1">01 - Read Coils</option>
+            <option value="2">02 - Read Discrete Inputs</option>
+            <option value="3" selected>03 - Read Holding Registers</option>
+            <option value="4">04 - Read Input Registers</option>
+          </select>
+          <label for="poll-address">Starting Address</label>
+          <input id="poll-address" type="number" min="0" max="65535" placeholder="0" autocomplete="off" />
+          <label for="poll-quantity">Quantity</label>
+          <input id="poll-quantity" type="number" min="1" max="125" placeholder="1" autocomplete="off" />
+          <label for="poll-interval">Interval, ms (min 200)</label>
+          <input id="poll-interval" type="number" min="200" max="60000" placeholder="1000" autocomplete="off" />
+          <div class="button-row">
+            <button id="poll-start-btn" type="submit">Start</button>
+            <button id="poll-stop-btn" type="button" disabled>Stop</button>
+          </div>
+        </form>
+        <dl id="poll-result">
+          <dt>Value</dt>
+          <dd id="poll-value">-</dd>
+          <dt>Last response</dt>
+          <dd id="poll-last-response">-</dd>
+          <dt>Requests</dt>
+          <dd id="poll-requests">-</dd>
+          <dt>Successful / Timeouts / Exceptions</dt>
+          <dd id="poll-breakdown">-</dd>
+          <dt>Failure rate</dt>
+          <dd id="poll-failure-rate">-</dd>
+          <dt>Response time (min / avg / max)</dt>
+          <dd id="poll-timing">-</dd>
+        </dl>
+      </section>
+    </div>
+
+    <div id="tab-traffic" class="tab-panel" hidden>
+      <section class="card">
+        <h2>Passive Modbus TCP Traffic</h2>
+        <p class="card-hint">
+          Observed from the shared background capture (TCP/502), not a
+          separate listener -- shows every client/server relationship
+          seen since start or last Reset. <strong>Limitation:</strong>
+          this inspects individual captured packets without TCP stream
+          reassembly, so a request/response split across TCP segments
+          won't be counted, and "Missing" is a best-effort signal (a
+          response this capture simply missed looks the same as one
+          that was never sent) -- treat it as a hint to investigate
+          further, not proof.
+        </p>
+        <div class="button-row">
+          <button id="modbus-traffic-reset-btn" type="button">Reset</button>
+        </div>
+        <div class="table-scroll">
+          <table id="modbus-traffic-results" class="data-table" hidden>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Server</th>
+                <th>Unit</th>
+                <th>FC</th>
+                <th>Requests</th>
+                <th>Responses</th>
+                <th>Exceptions</th>
+                <th>Missing</th>
+                <th>Response time (min/avg/max)</th>
+              </tr>
+            </thead>
+            <tbody id="modbus-traffic-results-body"></tbody>
+          </table>
+        </div>
+        <p id="modbus-traffic-empty" class="card-hint">No Modbus TCP traffic observed yet.</p>
+      </section>
+    </div>
   </main>
 
   <footer>
