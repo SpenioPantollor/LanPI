@@ -82,6 +82,30 @@ async function loadStatus() {
   }
 }
 
+function formatPowerStatus(power) {
+  if (!power || !power.available) return { text: "-", className: "" };
+
+  const nowIssues = [];
+  if (power.undervoltage) nowIssues.push("undervoltage");
+  if (power.throttled) nowIssues.push("throttled");
+  if (power.freq_capped) nowIssues.push("freq capped");
+  if (power.temp_limit) nowIssues.push("temp limit");
+  if (nowIssues.length > 0) {
+    return { text: `${nowIssues.join(", ")} NOW -- check the power supply/cable`, className: "warn" };
+  }
+
+  const pastIssues = [];
+  if (power.undervoltage_since_boot) pastIssues.push("undervoltage");
+  if (power.throttled_since_boot) pastIssues.push("throttled");
+  if (power.freq_capped_since_boot) pastIssues.push("freq capped");
+  if (power.temp_limit_since_boot) pastIssues.push("temp limit");
+  if (pastIssues.length > 0) {
+    return { text: `OK now (${pastIssues.join(", ")} earlier this boot)`, className: "" };
+  }
+
+  return { text: "OK", className: "link-up" };
+}
+
 async function loadSystem() {
   const modelEl = document.getElementById("system-model");
   const cpuEl = document.getElementById("system-cpu");
@@ -90,6 +114,7 @@ async function loadSystem() {
   const memoryEl = document.getElementById("system-memory");
   const diskEl = document.getElementById("system-disk");
   const uptimeEl = document.getElementById("system-uptime");
+  const powerEl = document.getElementById("system-power");
 
   try {
     const res = await fetch("/api/system");
@@ -115,6 +140,10 @@ async function loadSystem() {
       : "-";
 
     uptimeEl.textContent = formatDuration(info.system_uptime_seconds);
+
+    const power = formatPowerStatus(info.power);
+    powerEl.textContent = power.text;
+    powerEl.className = power.className;
   } catch (err) {
     modelEl.textContent = "unreachable";
   }

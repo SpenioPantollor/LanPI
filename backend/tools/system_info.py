@@ -8,7 +8,24 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import time
+
+_VCGENCMD_CANDIDATES = ["/usr/bin/vcgencmd", "/opt/vc/bin/vcgencmd", "vcgencmd"]
+
+# get_throttled bitmask (Raspberry Pi firmware): low 4 bits are the
+# CURRENT state, the same 4 bits shifted up 16 are "has happened at
+# least once since boot" -- e.g. undervoltage can self-clear once a
+# proper supply is reconnected, but the since-boot bit stays set until
+# the next reboot, which is exactly why both are worth showing: current
+# state says "is it a problem right now", since-boot says "did it ever
+# happen, even if it looks fine this second".
+_THROTTLED_BITS = {
+    "undervoltage": 0x1,
+    "freq_capped": 0x2,
+    "throttled": 0x4,
+    "temp_limit": 0x8,
+}
 
 
 def _read_file(path: str) -> str | None:
@@ -17,6 +34,40 @@ def _read_file(path: str) -> str | None:
             return f.read()
     except OSError:
         return None
+
+
+def _find_vcgencmd() -> str | None:
+    for candidate in _VCGENCMD_CANDIDATES:
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return None
+
+
+def get_power_status() -> dict:
+    vcgencmd = _find_vcgencmd()
+    if not vcgencmd:
+        return {"available": False}
+    try:
+        result = subprocess.run(
+            [vcgencmd, "get_throttled"], capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {"available": False}
+    if result.returncode != 0:
+        return {"available": False}
+
+    raw = result.stdout.strip()
+    try:
+        value = int(raw.split("=", 1)[1], 16)
+    except (IndexError, ValueError):
+        return {"available": False}
+
+    status = {"available": True, "raw": f"0x{value:05x}"}
+    for name, bit in _THROTTLED_BITS.items():
+        status[name] = bool(value & bit)
+        status[f"{name}_since_boot"] = bool(value & (bit << 16))
+    return status
 
 
 def get_model() -> str | None:
@@ -129,4 +180,5 @@ def get_system_info() -> dict:
         "memory": get_memory(),
         "disk": get_disk(),
         "system_uptime_seconds": get_uptime_seconds(),
+        "power": get_power_status(),
     }

@@ -6,6 +6,7 @@
   --text: #e6e8eb;
   --text-dim: #8b90a0;
   --accent: #4fd1c5;
+  --warn: #f87171;
   --gap: clamp(1rem, 4vw, 1.5rem);
 }
 
@@ -180,6 +181,11 @@ dd {
 
 .link-down {
   color: var(--text-dim);
+  font-weight: 600;
+}
+
+.warn {
+  color: var(--warn);
   font-weight: 600;
 }
 
