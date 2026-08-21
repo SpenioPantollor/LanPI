@@ -439,12 +439,12 @@
           "note": "hex address 0x0016"
         },
         {
-          "label": "* Heat energy E1",
+          "label": "Heat energy E1 (High Resolution)",
           "function_code": 3,
           "address": 24,
           "quantity": 2,
           "data_type": "float32",
-          "note": "hex address 0x0018"
+          "note": "High-resolution version of \"Heat energy E1\" at address 22 (0x16). hex address 0x0018"
         },
         {
           "label": "Heat energy E2",
@@ -463,12 +463,12 @@
           "note": "hex address 0x001C"
         },
         {
-          "label": "* Heat energy E3",
+          "label": "Heat energy E3 (High Resolution)",
           "function_code": 3,
           "address": 30,
           "quantity": 2,
           "data_type": "float32",
-          "note": "hex address 0x001E"
+          "note": "High-resolution version of \"Cooling energy E3\" at address 28 (0x1C) -- labeled \"Heat energy E3\" in Kamstrup's own documentation despite following the Cooling energy E3 base register. hex address 0x001E"
         },
         {
           "label": "Inlet energy E4",
@@ -623,12 +623,12 @@
           "note": "hex address 0x0044"
         },
         {
-          "label": "*Volume V1",
+          "label": "Volume V1 (High Resolution)",
           "function_code": 3,
           "address": 70,
           "quantity": 2,
           "data_type": "float32",
-          "note": "hex address 0x0046"
+          "note": "High-resolution version of \"Volume V1\" at address 68 (0x44). hex address 0x0046"
         },
         {
           "label": "Volume V2",
