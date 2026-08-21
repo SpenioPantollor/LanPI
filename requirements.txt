@@ -1,2 +1,7 @@
-fastapi
-uvicorn
+# Pinned to the exact minor version actually verified against real
+# hardware (see README.md Installation) -- ~= allows patch releases
+# within that minor version, not the next minor/major (both fastapi
+# and uvicorn are still pre-1.0, where a minor bump can carry breaking
+# changes).
+fastapi~=0.141.1
+uvicorn~=0.52.3

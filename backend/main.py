@@ -9,10 +9,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from backend.api.routes import TEST_PORT_INTERFACE, router as api_router
 from backend.capture import traffic_stats
 from backend.discovery import cdp, lldp, mndp
+from backend.version import get_version
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
-app = FastAPI(title="LanPi", version="0.2.2")
+app = FastAPI(title="LanPi", version=get_version())
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

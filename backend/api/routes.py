@@ -19,6 +19,7 @@ from backend.tools import ping as ping_tool
 from backend.tools import port_scanner
 from backend.tools import system_info
 from backend.tools import tcp_test
+from backend.version import get_version
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ def status() -> dict:
     return {
         "hostname": socket.gethostname(),
         "platform": platform.platform(),
-        "lanpi_version": "0.2.2",
+        "lanpi_version": get_version(),
         "backend_uptime_seconds": int(uptime_seconds),
     }
 
