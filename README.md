@@ -292,7 +292,19 @@ lanpi/
 ├── STATUS.md
 ├── LICENSE
 ├── .gitignore
+├── VERSION                      # single source of truth, read by backend/version.py
 ├── requirements.txt
+├── requirements-dev.txt         # + pytest/httpx, for running tests/
+├── pytest.ini
+│
+├── tests/                       # pytest -- parsers/classifiers/validation,
+│   │                             # no real hardware needed (see Running Tests)
+│   ├── test_lldp.py / test_cdp.py / test_mndp.py
+│   ├── test_traffic_stats.py
+│   ├── test_modbus.py / test_modbus_templates.py
+│   ├── test_eth0_mode.py
+│   ├── test_ip_scanner.py / test_port_scanner.py
+│   └── test_api.py
 │
 ├── backend/
 │   ├── main.py                 # FastAPI app, static file serving, startup listeners
@@ -377,6 +389,24 @@ To update an existing install: `git pull` then
 regenerate the fallback AP password or touch an already-configured
 `hostapd.conf`.
 
+## Running Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Covers the hand-rolled LLDP/CDP/MNDP parsers, the traffic classifier
+(including the talker-merge and self-MAC-exclusion logic), the Modbus
+TCP client (against a local fake server, not real hardware), Modbus
+device templates, `eth0` mode parsing/validation, and API-layer request
+validation -- all pure logic, so none of it needs a real Pi, `eth0`
+interface, or network device to run. It does need a Python version
+FastAPI's pinned release actually supports (see Installation above) --
+notably *not* the 3.9 shipped with older macOS, which is a real gap
+for local development on such a machine, not a limitation of the tests
+themselves.
+
 ## Development Roadmap
 
 ### Version 0.1
@@ -419,7 +449,9 @@ Extended network diagnostics:
 * [x] DHCP lease details (server, lease time, domain) alongside the
   existing gateway/DNS -- confirmed live
 * [x] Traffic statistics -- confirmed live (own dedicated Traffic page)
-* [x] Top talkers -- ranked by live bytes/s, confirmed live
+* [x] Top talkers -- ranked by cumulative bytes over the summary
+  period (matches the Summary card above it), sortable by any column,
+  confirmed live
 * [x] MTR / traceroute -- confirmed live, real multi-hop trace
 
 ### Version 0.3
@@ -439,6 +471,28 @@ Industrial Ethernet support:
   the slave tested against wasn't one, so the general read mechanism
   works but the Kamstrup register map's accuracy is still unverified
 * [ ] Industrial device identification
+
+### Version 0.2.3 — Foundation
+
+Not new features -- hardening what V0.1/V0.2 already built, before
+starting the riskier industrial-protocol work above:
+
+* [x] Centralized version management (`VERSION` file, read by both
+  FastAPI's own metadata and `/api/status`) -- confirmed live
+* [x] Pinned dependency versions (`requirements.txt`, matched to what's
+  actually verified on the Pi)
+* [x] Automated tests (`pytest`, see Running Tests below) -- parser/
+  classifier/validation logic covered without needing real hardware
+* [ ] Management interface (port 8000) blocked on `eth0`, SSH (22)
+  left open there as a recovery path
+* [ ] Capture storage limits (size/space caps on recorded `.pcap`
+  files)
+* [ ] `backend/api/routes.py` split into per-feature route modules
+* [ ] Shared packet-capture dispatcher (one `tcpdump` process feeding
+  LLDP/CDP/MNDP/Traffic Stats, instead of one each)
+* [ ] Subsystem health reporting (are the background listeners
+  actually running)
+* [ ] CI running the test suite on every push
 
 ## Safety
 

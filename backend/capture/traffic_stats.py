@@ -17,10 +17,11 @@ inspection) to maintain:
     a device sending both IPv4 and LLDP traffic used to show up as two
     unrelated rows (one by IP, one by MAC) before this (user-reported).
 
-Top talkers are ranked by *live* bytes/s (from the rolling window),
-not lifetime total -- "who's talking right now" is more useful for a
-live dashboard than "who talked the most since boot". Cumulative
-per-talker fields are still included alongside the live rate.
+Top talkers are ranked by cumulative bytes over the summary period
+(since start/reset), matching the Summary card above them -- both
+reset together via reset(). The live rolling-window rate is still
+included per talker alongside the cumulative fields; the frontend
+re-sorts client-side on column click.
 
 The TEST PORT interface's own MAC is excluded from top_talkers (but
 still counted in the overall totals) -- LanPi's own tools generate

@@ -1,0 +1,6 @@
+# Dev-only tooling -- not needed to run LanPi itself (see requirements.txt),
+# only to test it. httpx is FastAPI TestClient's own dependency, not used
+# by the app itself.
+-r requirements.txt
+pytest~=8.3
+httpx~=0.28

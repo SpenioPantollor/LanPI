@@ -1,6 +1,6 @@
 # LanPi — Project Status
 
-Last updated: 2026-08-17
+Last updated: 2026-08-21
 
 This file tracks what has actually been built and deployed, as a
 day-to-day companion to the long-term plan in `ARCHITECTURE.MD`.
@@ -37,7 +37,49 @@ addresses, float32 word order) are still unconfirmed against an
 actual Kamstrup meter, since that slave wasn't one -- protocol
 mechanics and register-map accuracy are separate claims. PROFINET
 DCP/traffic detection, S7 diagnostics, and industrial device ID are
-still open.
+still open, deliberately deferred until real PLC hardware is available
+(maintainer's call, 2026-08-21) -- not started in this pass.
+
+**V0.2.3 (foundation hardening) started 2026-08-21**, per a maintainer-
+provided refactoring brief: the goal is making the existing V0.1/V0.2
+code more robust before building further industrial-protocol features
+on top of it, not adding new user-facing functionality. Agreed
+execution order: centralized versioning + pinned dependencies (done),
+automated tests (done, this entry), then management-interface
+isolation, capture storage limits, route-file splitting, the shared
+capture dispatcher, and CI -- in that order, see README's Version
+0.2.3 roadmap section for the live checklist. `eth0` was deliberately
+kept as a management/recovery path (SSH) even after interface
+isolation, on the maintainer's explicit pushback against the brief's
+original item 1 -- only port 8000 gets blocked there, not port 22.
+
+- Centralized version management: single `VERSION` file at the repo
+  root, read by `backend/version.py`, consumed by both FastAPI's own
+  metadata and `/api/status`'s `lanpi_version` field -- confirmed live
+  (`{"lanpi_version": "0.2.3", ...}`). Fixes a real prior bug: `main.py`
+  and `routes.py` each had their own hardcoded version string, one of
+  which had drifted stale.
+- Pinned dependencies: `requirements.txt` constrained to `fastapi~=0.141.1`
+  / `uvicorn~=0.52.3`, matching what's actually installed and verified
+  on the Pi (confirmed `pip install -r requirements.txt` resolves
+  cleanly there, Python 3.13). Note: these pins can't be installed at
+  all in a local venv on Python 3.9 (older macOS) -- FastAPI 0.141
+  requires a newer Python, so pip's resolver silently finds no
+  matching version. Not a bug in the constraint; the Pi (the real
+  target, Python 3.13) is what matters and works.
+- Automated tests: `pytest` suite added under `tests/` (71 tests, all
+  passing) -- the hand-rolled LLDP/CDP/MNDP TLV parsers (synthetic
+  frames, no tcpdump needed), the traffic-stats classifier including
+  this session's talker-merge and self-MAC-exclusion logic, the Modbus
+  TCP client against a local fake server (protocol framing/exception
+  decoding, independent from the real-hardware verification above),
+  Modbus device-template float32 decoding, `eth0` mode's nmcli-output
+  parsing (mocked, no real nmcli needed), port/IP scanner input
+  validation, and FastAPI-layer request validation via `TestClient`.
+  All of it runs without a real Pi, `eth0` interface, or network
+  device -- pure logic and mocked I/O only. `requirements-dev.txt`
+  (`pytest` + `httpx`, the latter needed by FastAPI's `TestClient`)
+  keeps these dev-only deps out of the production `requirements.txt`.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -556,10 +598,21 @@ from before this date, that history no longer exists.
   hardened multi-user product. Revisit only if the threat model
   actually changes (e.g. LanPi starts getting exposed somewhere less
   trusted than a LAN/fallback-AP client).
-- No tests.
+- Test coverage (`tests/`) is parser/classifier/validation-level only
+  -- no integration tests against the actual background-thread
+  listeners, real subprocess tools (`tcpdump`/`nmap`/`mtr`/`nmcli`),
+  or a live FastAPI app with startup events firing. Those still rely
+  on the manual live-verification-on-the-Pi discipline described
+  throughout this file.
+- V0.2.3 foundation work is partway done (see Summary above) --
+  management-interface isolation, capture storage limits, route-file
+  splitting, the shared capture dispatcher, subsystem health
+  reporting, and CI are agreed but not yet started.
 
 ## Next steps
 
+- Continue the V0.2.3 foundation sequence: management-interface
+  isolation (block port 8000 on `eth0`, keep SSH open) next.
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).
