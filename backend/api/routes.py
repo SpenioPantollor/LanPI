@@ -46,7 +46,7 @@ def status() -> dict:
     return {
         "hostname": socket.gethostname(),
         "platform": platform.platform(),
-        "lanpi_version": "0.1.0",
+        "lanpi_version": "0.2.2",
         "backend_uptime_seconds": int(uptime_seconds),
     }
 

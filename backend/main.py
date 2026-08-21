@@ -12,7 +12,7 @@ from backend.discovery import cdp, lldp, mndp
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
-app = FastAPI(title="LanPi", version="0.1.0")
+app = FastAPI(title="LanPi", version="0.2.2")
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
