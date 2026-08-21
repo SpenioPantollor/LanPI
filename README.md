@@ -91,26 +91,27 @@ Supported operating modes are planned to include:
 
 The management and test networks must remain isolated. LanPi will not bridge `wlan0` and `eth0`.
 
-## Planned Features
+## Features
+
+Everything below is implemented and live-verified against real
+hardware unless marked otherwise (see `STATUS.md` for the specifics
+of each verification, and the Development Roadmap section below for
+the checklist this is derived from). Each entry notes what it's
+actually built on, since "what tool/library does X" was a recurring
+question worth answering once here rather than per-feature.
 
 ### Ethernet Port Status
 
-* Link status
-* Link speed
-* Duplex
-* Auto-negotiation status
-* MAC address
-* MTU
-* Interface statistics
+Link status, speed, duplex, auto-negotiation, MAC address, MTU, and
+RX/TX/error interface counters for `eth0`, via `ip -j -s link` and
+`ethtool` (shelled out to, parsed from their normal CLI output --
+no netlink library).
 
 ### Cable Diagnostics (not supported on the current development hardware)
 
-* Wire pair quality (per-pair open / short / OK)
-* Cable length estimation
-
-This is TDR (Time Domain Reflectometry) functionality, exposed via
-`ethtool --cable-test` when the Ethernet PHY supports it. **Checked
-against the actual Pi 3 in use: not supported** --
+TDR (Time Domain Reflectometry) wire-pair quality and cable-length
+estimation, via `ethtool --cable-test`, when the Ethernet PHY supports
+it. **Checked against the actual Pi 3 in use: not supported** --
 `ethtool --cable-test eth0` returns "PHY driver does not support
 cable testing". The Pi 3's Ethernet is a USB-attached `smsc95xx`
 adapter, not a native PHY with TDR circuitry, so there's no path to
@@ -126,115 +127,151 @@ real Pi 4 hardware. Don't assume it works there either without
 actually running `ethtool --cable-test eth0` on one. Not planned for
 any version until confirmed on hardware that's actually been tested.
 
-### IP Configuration
+### IP Configuration (`eth0`)
 
-* Passive mode
-* DHCP client
-* Static IPv4 configuration
-* Gateway configuration
-* DNS configuration
-* DHCP lease information
+Passive (no IP, no L2 traffic, the default), DHCP client, and static
+IPv4 (address/gateway/DNS) modes, via `nmcli`. DHCP mode also surfaces
+lease details (server, lease time, domain) parsed from
+`nmcli`'s `DHCP4.OPTION` output. `eth0` is set to never install a
+default route (`ipv4.never-default`) regardless of mode, so the test
+port can never hijack the Pi's own outbound traffic away from `wlan0`
+(see `ARCHITECTURE.MD` Rule 3).
 
 ### Network Discovery
 
-* LLDP
-* CDP
-* MNDP
-* ARP discovery
+* **LLDP / CDP / MNDP** -- hand-rolled parsers (no `scapy` or any
+  packet-parsing library), each a background thread streaming raw
+  frames from `tcpdump -w -`'s pcap output and decoding the relevant
+  TLV structure directly with Python's `struct` module: LLDP's plain
+  EtherType framing, CDP's 802.3 + LLC/SNAP framing, and MNDP's UDP
+  broadcast (port 5678) framing. All three confirmed against real
+  neighbors (a MikroTik router sends LLDP, CDP, and MNDP all three).
+* **ARP scan** -- via the `arp-scan` CLI tool, `--localnet` or an
+  explicit network.
+* **IP scanner** -- via `nmap -sn` (ping-sweep host discovery,
+  combining ICMP/ARP/TCP probes), an explicit CIDR/range rather than
+  only "the local subnet".
 
-Future industrial discovery:
-
-* PROFINET DCP
-* Siemens device identification
+Future industrial discovery: PROFINET DCP, Siemens device
+identification (not started).
 
 ### Diagnostic Tools
 
-* Ping
-* Continuous ping
-* ARP lookup
-* ARP network scan
-* IP scanner (subnet host discovery — which addresses are alive)
-* Port scanner (scan a host across a port range, not just a single
-  TCP connection test)
-* Traceroute / MTR
-* DNS lookup
-* TCP connection test
+* **Ping** -- via the system `ping` binary, run as a background
+  process so it can be stopped early (SIGINT, so it still prints its
+  summary line) instead of blocking for a fixed count. Shows live
+  min/avg/max RTT rather than a per-reply list.
+* **MTR / Traceroute** -- via the `mtr` CLI tool's `--report --json`
+  output (parsed as JSON, not scraped from its text table).
+  Background start/stop so a run against an unreachable host can be
+  cancelled rather than blocking until it times out on its own.
+* **TCP port test** -- hand-rolled (Python's `socket` module
+  directly, no library), a single connect probe against one host:port,
+  classified as open/closed/timeout.
+* **Port scanner** -- via `nmap -sS` (SYN scan) across a port range on
+  one host, distinct from the single-port TCP test above.
+* **Protocol port presets** on the TCP port test:
 
-Planned protocol presets:
+  | Protocol   | TCP Port |
+  | ---------- | -------: |
+  | Siemens S7 |      102 |
+  | Modbus TCP |      502 |
+  | HTTP       |       80 |
+  | HTTPS      |      443 |
+  | VNC        |     5900 |
 
-| Protocol   | TCP Port |
-| ---------- | -------: |
-| Siemens S7 |      102 |
-| Modbus TCP |      502 |
-| HTTP       |       80 |
-| HTTPS      |      443 |
-| VNC        |     5900 |
+Every active tool above (TCP test, MTR, IP scanner, port scanner,
+Modbus) sources its traffic specifically from `eth0`'s own address
+(socket bind, or `nmap -e`/`mtr -a`), not just any outbound socket --
+`eth0` deliberately has no default route, so an unbound connection to
+a host outside `eth0`'s subnet would otherwise silently go out
+`wlan0` instead.
+
+### Modbus TCP
+
+Read-only Modbus TCP client -- coils, discrete inputs, holding
+registers, input registers (function codes 1-4). **Hand-rolled, not
+`pymodbus` or any Modbus library**: the MBAP header + PDU format is
+simple enough to build and parse directly with `socket` + `struct`,
+consistent with this project's LLDP/CDP/MNDP parsers. No write
+functions by design (see Safety, below).
+
+Includes 32-bit IEEE float decoding for registers that need it (many
+metering devices, e.g. Kamstrup heat/water meters, report everything
+as float32 across register pairs) and named **device templates** --
+a unit ID plus a labeled list of registers, read all at once with
+their labels attached, so a known device type's function code/
+address/quantity don't need re-entering by hand every time. Templates
+live in `config/modbus_templates.json` (tracked in git -- a device's
+register map is manufacturer documentation, not site-specific data);
+`config/modbus_templates.example.json` is a placeholder showing the
+format.
 
 ### Passive Traffic Analysis
 
-Planned live statistics include:
+Own dedicated Traffic page: live packet/byte counters, broadcast/
+multicast/unicast split, and a **Top Talkers** table, built on a
+background `tcpdump` capture with **no BPF filter** (unlike the
+narrowly-filtered LLDP/CDP/MNDP listeners, this one has to see
+everything) and hand-rolled classification of each frame's Ethernet/
+IPv4/ARP headers plus UDP/TCP ports (no deep payload inspection):
 
-* Packets per second
-* Broadcast traffic
-* Multicast traffic
-* ARP
-* IPv4
-* IPv6
-* DHCP
-* LLDP
-* CDP
-* mDNS
-* SSDP
-* Top talkers
+* Per-protocol counts: ARP, IPv4, IPv6, DHCP, LLDP, CDP, mDNS, SSDP,
+  PROFINET (EtherType `0x8892`), S7 (TCP port 102)
+* Top Talkers grouped by source MAC (always present at L2, unlike IP)
+  with the most recently seen source IP attached to the same entry --
+  a device sending both IPv4 and LLDP/CDP/PROFINET traffic is one row,
+  not two. Ranked by cumulative bytes over the summary period (since
+  start or last Reset); every column is sortable.
+* LanPi's own `eth0` traffic (from its own diagnostic tools) is
+  excluded from the Top Talkers table specifically, but still counted
+  in the overall totals.
 
-Future industrial protocol analysis:
-
-* PROFINET
-* S7
-* Modbus TCP
+Future industrial protocol analysis: PROFINET and S7 traffic detection
+exist as basic EtherType/port matches in the classifier above but
+aren't yet confirmed against real devices sending either (no such
+device available to test against yet).
 
 ### Packet Capture
 
-LanPi will provide packet capture directly from the web interface.
-
-Planned functionality:
-
-* Start capture
-* Stop capture
-* Capture duration
-* Protocol filters
-* BPF custom filter
-* Download PCAP files
-* Open captures later using Wireshark
-
-Planned presets:
-
-* All traffic
-* Broadcast / multicast
-* ARP
-* DHCP
-* LLDP / CDP
-* PROFINET
-* Siemens S7
-* Modbus TCP
+Start/stop packet capture on `eth0` to a `.pcap` file, via `tcpdump`
+(no BPF filter by default, or an optional custom BPF filter),
+downloadable and directly openable in Wireshark. Runs as a background
+process (mirrors Ping's design) with an optional fixed duration or
+manual stop.
 
 ## Software Architecture
 
-The current planned software stack is:
+What LanPi is actually built on (as opposed to originally planned --
+see git history / `STATUS.md` for how a couple of these choices
+changed along the way):
 
-* Raspberry Pi OS Lite
-* Python
-* FastAPI
-* NetworkManager
-* HTML / CSS / JavaScript
-* tcpdump / tshark
-* ethtool
-* iproute2
-* nmap
-* arp-scan
-* mtr
-
-The frontend is intentionally planned without a large JavaScript framework to keep the system lightweight.
+* **Backend**: Python, FastAPI, uvicorn -- no ORM, no database,
+  everything is either read live from `/proc`/`/sys`/CLI tools or held
+  in memory.
+* **Network configuration**: NetworkManager, exclusively via `nmcli`
+  (no `dhcpcd`-based Pi OS releases supported).
+* **Neighbor discovery** (LLDP/CDP/MNDP) and **traffic
+  statistics/Top Talkers**: hand-rolled parsers reading raw
+  `tcpdump -w -` pcap streams directly with `struct` -- no `scapy` or
+  any packet-parsing library anywhere in the project.
+* **Modbus TCP**: hand-rolled client (`socket` + `struct`) -- no
+  `pymodbus` or any Modbus library.
+* **TCP port test**: hand-rolled (`socket`), no library.
+* **Packet capture**: `tcpdump`, writing real `.pcap` files.
+* **IP scanning**: `nmap -sn`.
+* **Port scanning**: `nmap -sS` (needs real root -- run via `sudo`,
+  not `setcap`, see `STATUS.md` for why `setcap` alone silently drops
+  MAC/vendor data from `nmap`'s output).
+* **MTR / traceroute**: `mtr --report --json`.
+* **ARP scan**: `arp-scan`.
+* **Ping**: the system `ping` binary.
+* **Link status**: `ip -j -s link`, `ethtool`.
+* **Fallback access point**: `hostapd` + `dnsmasq` (not
+  NetworkManager's built-in hotspot mode -- see `STATUS.md` for why).
+* **Frontend**: vanilla HTML/CSS/JavaScript, no framework, no build
+  step, no bundler. Each page (Dashboard, Traffic, IP Scanner, Port
+  Scanner, Modbus, Settings) is a standalone `.html` + `.js` pair.
 
 ## Development Approach
 
@@ -251,26 +288,39 @@ The project is also intended as a practical experiment in building a useful netw
 ```text
 lanpi/
 ├── README.md
+├── ARCHITECTURE.MD
+├── STATUS.md
 ├── LICENSE
 ├── .gitignore
 ├── requirements.txt
 │
 ├── backend/
-│   ├── main.py
-│   ├── api/
-│   ├── network/
-│   ├── discovery/
-│   ├── tools/
-│   └── capture/
+│   ├── main.py                 # FastAPI app, static file serving, startup listeners
+│   ├── api/routes.py           # every /api/* endpoint
+│   ├── network/                # wifi, eth0 mode, ap, link status
+│   ├── discovery/               # lldp.py, cdp.py, mndp.py (passive, background)
+│   ├── tools/                  # ping, arp_scan, tcp_test, mtr, ip_scanner,
+│   │                           # port_scanner, modbus, modbus_templates, system_info
+│   └── capture/                # pcap.py, traffic_stats.py
 │
-├── frontend/
-│   ├── index.html
-│   ├── app.js
-│   └── style.css
+├── frontend/                   # one .html + .js pair per page, no build step
+│   ├── index.html / app.js     # Dashboard
+│   ├── traffic.html / traffic.js
+│   ├── ip-scanner.html / ip-scanner.js
+│   ├── port-scanner.html / port-scanner.js
+│   ├── modbus.html / modbus.js
+│   ├── settings.html / settings.js
+│   └── style.css               # shared by every page
+│
+├── config/
+│   ├── modbus_templates.json           # real device register maps (tracked in git)
+│   └── modbus_templates.example.json   # placeholder, shows the format
 │
 ├── system/
-│   ├── lanpi.service
-│   └── install.sh
+│   ├── lanpi.service, lanpi-wifi-fallback.service
+│   ├── install.sh
+│   ├── lanpi-ap-up.sh / lanpi-ap-down.sh
+│   └── hostapd.conf.template, dnsmasq-ap.conf, 99-lanpi-no-forward.conf
 │
 └── docs/
 ```
