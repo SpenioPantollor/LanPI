@@ -379,7 +379,11 @@ Industrial Ethernet support:
 * [ ] PROFINET DCP discovery
 * [ ] PROFINET traffic detection
 * [ ] Siemens S7 diagnostics
-* [ ] Modbus TCP diagnostics
+* [x] Modbus TCP diagnostics (read-only: coils, discrete inputs,
+  holding/input registers) -- protocol logic confirmed against a
+  local test server (correct register/coil decoding, exception
+  handling); **not yet confirmed against a real Modbus device**, none
+  available to test against yet
 * [ ] Industrial device identification
 
 ## Safety

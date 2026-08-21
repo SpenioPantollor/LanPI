@@ -28,8 +28,11 @@ Talkers table already aggregates every passively-observed device
 (IP/MAC + protocol breakdown), so a separate unified-device-list page
 would have been substantially redundant with it.
 
-**Focus is now on testing** the already-built V0.1/V0.2 feature set
-rather than adding more, per the maintainer.
+**V0.3 (industrial Ethernet support) started 2026-08-17**: Modbus TCP
+read client (coils/discrete inputs/holding/input registers) done,
+protocol logic verified against a local test server -- not yet
+against a real Modbus device, none available. PROFINET DCP/traffic
+detection, S7 diagnostics, and industrial device ID are still open.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -123,6 +126,16 @@ from before this date, that history no longer exists.
     and an actual failure. Own Port Scanner page
     (`frontend/port-scanner.html`/`port-scanner.js`) with Well-known/
     1-10000/All(1-65535) range presets.
+  - `POST /api/tools/modbus/read` — Modbus TCP read
+    (`backend/tools/modbus.py`), hand-rolled (MBAP header + PDU) --
+    no `pymodbus` dependency, same reasoning as the LLDP/CDP/MNDP
+    parsers: simple enough not to need a library for just the four
+    read functions (coils, discrete inputs, holding/input registers).
+    Read-only by design (Safety section, ARCHITECTURE.MD) -- no write
+    functions. Sourced from eth0's address via socket bind. Single
+    request/response, not background start/stop (bounded by its own
+    3s timeout, no long-running-scan risk to manage). Own Modbus page
+    (`frontend/modbus.html`/`modbus.js`).
   - `POST /api/tools/arp-scan` — active host discovery on eth0's local
     network via `arp-scan` (`backend/tools/arp_scan.py`); uses
     `--localnet` when eth0 has an address, or an explicit network
@@ -179,8 +192,8 @@ from before this date, that history no longer exists.
   `system/99-lanpi-no-forward.conf` disables IP forwarding as
   defense-in-depth for ARCHITECTURE.MD Rule 3 (no bridge between
   `wlan0` and `eth0`), independent of hostapd/dnsmasq internals.
-- **Frontend**: five pages now (Dashboard, Traffic, IP Scanner, Port
-  Scanner, Settings), navigated via a pill-button tab bar in the header (each
+- **Frontend**: six pages now (Dashboard, Traffic, IP Scanner, Port
+  Scanner, Modbus, Settings), navigated via a pill-button tab bar in the header (each
   page's `<nav>` lists every page including itself, marked `.active`
   — replaced plain inline text links after user feedback that they
   read as an ambiguous run-on once there were more than two, with
@@ -220,6 +233,9 @@ from before this date, that history no longer exists.
   - **Port Scanner** (`/port-scanner.html` + `port-scanner.js`): nmap
     SYN scan across a port range on one host, range presets,
     `.stacked-cards`.
+  - **Modbus** (`/modbus.html` + `modbus.js`): Modbus TCP read form
+    (host/port/unit ID/function/address/quantity) and a results
+    table, `.stacked-cards`.
   - **Settings** (`/settings.html` + `settings.js`): Wi-Fi client
     scan/connect (password prompt)/saved-network list+forget, an "Add
     known network" form, and fallback AP SSID/password editing (writes
@@ -486,11 +502,26 @@ from before this date, that history no longer exists.
   (10000) would have made the page's own "All (1-65535)" preset button
   always fail its own validation; removed the redundant cap since
   1-65535 was already the real bound.
+- Modbus TCP read: protocol logic **confirmed against a local fake
+  Modbus TCP server** (not a real device -- none available): correct
+  holding-register value decoding, correct bit-packed coil decoding
+  (alternating on/off pattern round-tripped correctly), connection
+  refused handled gracefully, function-code/quantity validation
+  rejects bad input before any request goes out, and a genuine Modbus
+  exception response (Illegal Data Address) was parsed into a
+  readable message rather than crashing or showing raw bytes. Passive
+  mode's "no source IP" error path confirmed live on the real Pi.
+  **Not yet exercised against a real PLC/Modbus device** -- next
+  real-hardware test when one's available.
 
 ## Known gaps
 
 - PROFINET/S7 traffic detection implemented but not yet confirmed
   against a real device (see Verified section above).
+- Modbus TCP read client implemented but not yet confirmed against a
+  real Modbus device (see Verified section above) -- PROFINET DCP/
+  traffic detection, S7 diagnostics, and industrial device ID (rest
+  of V0.3) not started.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
@@ -501,8 +532,8 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- No new features queued -- current focus is testing the existing
-  V0.1/V0.2 feature set live.
+- Re-verify Modbus TCP read against a real PLC/Modbus device when
+  one's available.
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
 - Re-verify the captive-portal auto-open flow with a phone.
