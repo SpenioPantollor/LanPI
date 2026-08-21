@@ -1,0 +1,764 @@
+{
+  "templates": [
+    {
+      "id": "kamstrup-300",
+      "name": "Kamstrup xx-yy-300",
+      "description": "Kamstrup Modbus register map (type 300), from the manufacturer's own documentation. All values are 32-bit IEEE floats across 2 holding registers each. unit_id and function_code (3, Read Holding Registers) are assumed defaults -- verify against the real meter; if reads come back as Illegal Function, try function_code 4 (Input Registers) instead.",
+      "unit_id": 1,
+      "registers": [
+        {
+          "label": "Flow V1 actual",
+          "function_code": 3,
+          "address": 0,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0000"
+        },
+        {
+          "label": "Flow V2 actual",
+          "function_code": 3,
+          "address": 2,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0002"
+        },
+        {
+          "label": "Actual Power",
+          "function_code": 3,
+          "address": 4,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0004"
+        },
+        {
+          "label": "t1 actual",
+          "function_code": 3,
+          "address": 6,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0006"
+        },
+        {
+          "label": "t2 actual",
+          "function_code": 3,
+          "address": 8,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0008"
+        },
+        {
+          "label": "t3 actual",
+          "function_code": 3,
+          "address": 10,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x000A"
+        },
+        {
+          "label": "t4 actual",
+          "function_code": 3,
+          "address": 12,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x000C"
+        },
+        {
+          "label": "t1-t2 diff. temp.",
+          "function_code": 3,
+          "address": 14,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x000E"
+        },
+        {
+          "label": "P1 actual",
+          "function_code": 3,
+          "address": 16,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0010"
+        },
+        {
+          "label": "P2 actual",
+          "function_code": 3,
+          "address": 18,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0012"
+        },
+        {
+          "label": "Heat energy E1",
+          "function_code": 3,
+          "address": 20,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0014"
+        },
+        {
+          "label": "Heat energy E2",
+          "function_code": 3,
+          "address": 22,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0016"
+        },
+        {
+          "label": "Cooling energy E3",
+          "function_code": 3,
+          "address": 24,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0018"
+        },
+        {
+          "label": "Inlet energy E4",
+          "function_code": 3,
+          "address": 26,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x001A"
+        },
+        {
+          "label": "Outlet energy E5",
+          "function_code": 3,
+          "address": 28,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x001C"
+        },
+        {
+          "label": "Tap water energy E6",
+          "function_code": 3,
+          "address": 30,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x001E"
+        },
+        {
+          "label": "Tap water energy E7",
+          "function_code": 3,
+          "address": 32,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0020"
+        },
+        {
+          "label": "Energy E8",
+          "function_code": 3,
+          "address": 34,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0022"
+        },
+        {
+          "label": "Energy E9",
+          "function_code": 3,
+          "address": 36,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0024"
+        },
+        {
+          "label": "Energy E10",
+          "function_code": 3,
+          "address": 38,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0026"
+        },
+        {
+          "label": "Energy E11",
+          "function_code": 3,
+          "address": 40,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0028"
+        },
+        {
+          "label": "Tariff TA2",
+          "function_code": 3,
+          "address": 42,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x002A"
+        },
+        {
+          "label": "Tariff TA3",
+          "function_code": 3,
+          "address": 44,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x002C"
+        },
+        {
+          "label": "Tariff TA4",
+          "function_code": 3,
+          "address": 46,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x002E"
+        },
+        {
+          "label": "Heat energy A1",
+          "function_code": 3,
+          "address": 48,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0030"
+        },
+        {
+          "label": "Heat energy A2",
+          "function_code": 3,
+          "address": 50,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0032"
+        },
+        {
+          "label": "Volume V1",
+          "function_code": 3,
+          "address": 52,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0034"
+        },
+        {
+          "label": "Volume V2",
+          "function_code": 3,
+          "address": 54,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0036"
+        },
+        {
+          "label": "Pulse input A1",
+          "function_code": 3,
+          "address": 56,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0038"
+        },
+        {
+          "label": "Pulse input B1",
+          "function_code": 3,
+          "address": 58,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x003A"
+        },
+        {
+          "label": "Pulse input A2",
+          "function_code": 3,
+          "address": 60,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x003C"
+        },
+        {
+          "label": "Pulse input B2",
+          "function_code": 3,
+          "address": 62,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x003E"
+        },
+        {
+          "label": "COP",
+          "function_code": 3,
+          "address": 64,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0040"
+        },
+        {
+          "label": "t5 limit",
+          "function_code": 3,
+          "address": 66,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0042"
+        },
+        {
+          "label": "Power Input B1",
+          "function_code": 3,
+          "address": 68,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0044"
+        },
+        {
+          "label": "QP average time",
+          "function_code": 3,
+          "address": 70,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0046"
+        },
+        {
+          "label": "Tariff limit TL2",
+          "function_code": 3,
+          "address": 72,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0048"
+        },
+        {
+          "label": "Tariff limit TL3",
+          "function_code": 3,
+          "address": 74,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x004A"
+        },
+        {
+          "label": "Tariff limit TL4",
+          "function_code": 3,
+          "address": 76,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x004C"
+        },
+        {
+          "label": "Mass M1",
+          "function_code": 3,
+          "address": 78,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x004E"
+        },
+        {
+          "label": "Mass M2",
+          "function_code": 3,
+          "address": 80,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0050"
+        }
+      ]
+    },
+    {
+      "id": "kamstrup-302",
+      "name": "Kamstrup xx-yy-302",
+      "description": "Kamstrup Modbus register map (type 302), from the manufacturer's own documentation. All values are 32-bit IEEE floats across 2 holding registers each. unit_id and function_code (3, Read Holding Registers) are assumed defaults -- verify against the real meter; if reads come back as Illegal Function, try function_code 4 (Input Registers) instead.",
+      "unit_id": 1,
+      "registers": [
+        {
+          "label": "Flow V1 actual",
+          "function_code": 3,
+          "address": 0,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0000"
+        },
+        {
+          "label": "Flow V2 actual",
+          "function_code": 3,
+          "address": 2,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0002"
+        },
+        {
+          "label": "Actual Power",
+          "function_code": 3,
+          "address": 4,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0004"
+        },
+        {
+          "label": "Actual Power 2 (E14/E16)",
+          "function_code": 3,
+          "address": 6,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0006"
+        },
+        {
+          "label": "t1 actual",
+          "function_code": 3,
+          "address": 8,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0008"
+        },
+        {
+          "label": "t2 actual",
+          "function_code": 3,
+          "address": 10,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x000A"
+        },
+        {
+          "label": "t3 actual",
+          "function_code": 3,
+          "address": 12,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x000C"
+        },
+        {
+          "label": "t4 actual",
+          "function_code": 3,
+          "address": 14,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x000E"
+        },
+        {
+          "label": "t1-t2 diff. temp.",
+          "function_code": 3,
+          "address": 16,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0010"
+        },
+        {
+          "label": "P1 actual",
+          "function_code": 3,
+          "address": 18,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0012"
+        },
+        {
+          "label": "P2 actual",
+          "function_code": 3,
+          "address": 20,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0014"
+        },
+        {
+          "label": "Heat energy E1",
+          "function_code": 3,
+          "address": 22,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0016"
+        },
+        {
+          "label": "* Heat energy E1",
+          "function_code": 3,
+          "address": 24,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0018"
+        },
+        {
+          "label": "Heat energy E2",
+          "function_code": 3,
+          "address": 26,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x001A"
+        },
+        {
+          "label": "Cooling energy E3",
+          "function_code": 3,
+          "address": 28,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x001C"
+        },
+        {
+          "label": "* Heat energy E3",
+          "function_code": 3,
+          "address": 30,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x001E"
+        },
+        {
+          "label": "Inlet energy E4",
+          "function_code": 3,
+          "address": 32,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0020"
+        },
+        {
+          "label": "Outlet energy E5",
+          "function_code": 3,
+          "address": 34,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0022"
+        },
+        {
+          "label": "Tap water energy E6",
+          "function_code": 3,
+          "address": 36,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0024"
+        },
+        {
+          "label": "Tap water energy E7",
+          "function_code": 3,
+          "address": 38,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0026"
+        },
+        {
+          "label": "Energy E8",
+          "function_code": 3,
+          "address": 40,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0028"
+        },
+        {
+          "label": "Energy E9",
+          "function_code": 3,
+          "address": 42,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x002A"
+        },
+        {
+          "label": "Energy E10",
+          "function_code": 3,
+          "address": 44,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x002C"
+        },
+        {
+          "label": "Energy E11",
+          "function_code": 3,
+          "address": 46,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x002E"
+        },
+        {
+          "label": "Energy E12",
+          "function_code": 3,
+          "address": 48,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0030"
+        },
+        {
+          "label": "Energy E13",
+          "function_code": 3,
+          "address": 50,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0032"
+        },
+        {
+          "label": "Energy E14",
+          "function_code": 3,
+          "address": 52,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0034"
+        },
+        {
+          "label": "Energy E15",
+          "function_code": 3,
+          "address": 54,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0036"
+        },
+        {
+          "label": "Energy E16",
+          "function_code": 3,
+          "address": 56,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0038"
+        },
+        {
+          "label": "Tariff TA2",
+          "function_code": 3,
+          "address": 58,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x003A"
+        },
+        {
+          "label": "Tariff TA3",
+          "function_code": 3,
+          "address": 60,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x003C"
+        },
+        {
+          "label": "Tariff TA4",
+          "function_code": 3,
+          "address": 62,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x003E"
+        },
+        {
+          "label": "Heat energy A1",
+          "function_code": 3,
+          "address": 64,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0040"
+        },
+        {
+          "label": "Heat energy A2",
+          "function_code": 3,
+          "address": 66,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0042"
+        },
+        {
+          "label": "Volume V1",
+          "function_code": 3,
+          "address": 68,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0044"
+        },
+        {
+          "label": "*Volume V1",
+          "function_code": 3,
+          "address": 70,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0046"
+        },
+        {
+          "label": "Volume V2",
+          "function_code": 3,
+          "address": 72,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0048"
+        },
+        {
+          "label": "Pulse input A1",
+          "function_code": 3,
+          "address": 74,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x004A"
+        },
+        {
+          "label": "Pulse input B1",
+          "function_code": 3,
+          "address": 76,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x004C"
+        },
+        {
+          "label": "Pulse input A2",
+          "function_code": 3,
+          "address": 78,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x004E"
+        },
+        {
+          "label": "Pulse input B2",
+          "function_code": 3,
+          "address": 80,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0050"
+        },
+        {
+          "label": "COP",
+          "function_code": 3,
+          "address": 82,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0052"
+        },
+        {
+          "label": "t5 limit",
+          "function_code": 3,
+          "address": 84,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0054"
+        },
+        {
+          "label": "Power Input B1",
+          "function_code": 3,
+          "address": 86,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0056"
+        },
+        {
+          "label": "QP average time",
+          "function_code": 3,
+          "address": 88,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0058"
+        },
+        {
+          "label": "Tariff limit TL2",
+          "function_code": 3,
+          "address": 90,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x005A"
+        },
+        {
+          "label": "Tariff limit TL3",
+          "function_code": 3,
+          "address": 92,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x005C"
+        },
+        {
+          "label": "Tariff limit TL4",
+          "function_code": 3,
+          "address": 94,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x005E"
+        },
+        {
+          "label": "Mass M1",
+          "function_code": 3,
+          "address": 96,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0060"
+        },
+        {
+          "label": "Mass M2",
+          "function_code": 3,
+          "address": 98,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0062"
+        },
+        {
+          "label": "Mass M3",
+          "function_code": 3,
+          "address": 100,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0064"
+        },
+        {
+          "label": "Mass M4",
+          "function_code": 3,
+          "address": 102,
+          "quantity": 2,
+          "data_type": "float32",
+          "note": "hex address 0x0066"
+        }
+      ]
+    }
+  ]
+}

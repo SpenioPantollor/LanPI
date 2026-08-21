@@ -15,6 +15,7 @@ missing, so the feature still works out of the box.
 from __future__ import annotations
 
 import json
+import struct
 from pathlib import Path
 
 from backend.tools import modbus
@@ -22,6 +23,26 @@ from backend.tools import modbus
 _REPO_DIR = Path(__file__).resolve().parent.parent.parent
 _TEMPLATES_PATH = _REPO_DIR / "config" / "modbus_templates.json"
 _EXAMPLE_PATH = _REPO_DIR / "config" / "modbus_templates.example.json"
+
+
+def _decode(data_type: str | None, values: list) -> float | None:
+    """Combine raw 16-bit register values into a typed value, per a
+    register's optional "data_type" field (e.g. Kamstrup meters report
+    everything as a 32-bit IEEE float across 2 holding registers).
+
+    Word order (which register holds the high vs. low half) isn't
+    standardized across vendors -- this assumes the common convention
+    of first-register-is-high-word, matching Kamstrup's own
+    documentation. If a real meter's decoded values come back as NaN
+    or nonsense, the word order is the first thing to suspect.
+    """
+    if data_type == "float32" and len(values) == 2:
+        try:
+            raw = struct.pack("!HH", values[0], values[1])
+            return struct.unpack("!f", raw)[0]
+        except (struct.error, TypeError):
+            return None
+    return None
 
 
 def list_templates() -> list[dict]:
@@ -53,6 +74,9 @@ def read_template(template_id: str, host: str, port: int = 502) -> dict:
             host, unit_id, reg.get("function_code"), reg.get("address"),
             reg.get("quantity"), port,
         )
+        decoded_value = None
+        if result.get("ok"):
+            decoded_value = _decode(reg.get("data_type"), result.get("values", []))
         results.append(
             {
                 "label": reg.get("label", ""),
@@ -60,9 +84,11 @@ def read_template(template_id: str, host: str, port: int = 502) -> dict:
                 "function_code": reg.get("function_code"),
                 "address": reg.get("address"),
                 "quantity": reg.get("quantity"),
+                "data_type": reg.get("data_type"),
                 "ok": result.get("ok", False),
                 "message": result.get("message"),
                 "values": result.get("values", []),
+                "decoded_value": decoded_value,
             }
         )
 

@@ -211,6 +211,8 @@ async function submitModbusTemplateRead(event) {
       let valueText;
       if (!r.ok) {
         valueText = r.message || "error";
+      } else if (r.decoded_value !== null && r.decoded_value !== undefined) {
+        valueText = Number(r.decoded_value.toFixed(4));
       } else if (r.function_code === 1 || r.function_code === 2) {
         valueText = r.values.map((v) => (v ? "ON" : "OFF")).join(", ");
       } else {

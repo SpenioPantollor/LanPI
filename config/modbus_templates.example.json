@@ -12,13 +12,15 @@
           "function_code": 3,
           "address": 0,
           "quantity": 2,
-          "note": "Placeholder -- e.g. a 32-bit value across 2 registers, per your meter's manual"
+          "data_type": "float32",
+          "note": "Placeholder -- e.g. a 32-bit IEEE float across 2 registers, per your meter's manual. Omit data_type for plain integer registers."
         },
         {
           "label": "Example: Active Power (W)",
           "function_code": 3,
           "address": 10,
           "quantity": 2,
+          "data_type": "float32",
           "note": "Placeholder"
         },
         {
