@@ -46,9 +46,10 @@ code more robust before building further industrial-protocol features
 on top of it, not adding new user-facing functionality. Agreed
 execution order: centralized versioning + pinned dependencies (done),
 automated tests (done), management-interface isolation (done),
-capture storage limits (done, this entry), then route-file splitting,
-the shared capture dispatcher, and CI -- in that order, see README's
-Version 0.2.3 roadmap section for the live checklist. `eth0` was deliberately
+capture storage limits (done), route-file splitting + shared capture
+dispatcher + health reporting (done, this entry) -- only a command-
+execution helper and CI remain. See README's Version 0.2.3 roadmap
+section for the live checklist. `eth0` was deliberately
 kept as a management/recovery path (SSH) even after interface
 isolation, on the maintainer's explicit pushback against the brief's
 original item 1 -- only port 8000 gets blocked there, not port 22.
@@ -99,6 +100,23 @@ original item 1 -- only port 8000 gets blocked there, not port 22.
   starting a second session correctly pruned the oldest file from the
   first session to stay under the (lowered) total cap, while the
   actively-written file was never touched.
+- Route file split + shared capture dispatcher + health reporting:
+  `backend/api/routes.py` (339 lines) split into
+  `backend/api/routes/{health,system,network,discovery,tools,modbus,
+  capture,traffic}.py` -- **confirmed live**, all 40 endpoints
+  byte-identical to before (diffed `openapi()`'s path list). LLDP/CDP/
+  MNDP/Traffic Stats consolidated onto one shared `tcpdump` process
+  (`backend/capture/dispatcher.py`) instead of four separate ones --
+  **confirmed live**: `ps aux` on the Pi showed exactly one
+  `tcpdump -i eth0 -U -nn -w -` process after restart (was four
+  before), and all three discovery endpoints correctly populated from
+  a real MikroTik neighbor (`SilainiaiMikrotik`, RouterOS 7.23.3)
+  through the shared feed -- LLDP with full chassis/port/system
+  description, CDP with device_id/platform/software_version, MNDP
+  with identity/board/uptime, all matching what direct per-protocol
+  tcpdump processes used to report. `/api/status`'s new
+  `capture_dispatcher` field confirmed live too
+  (`capture_running: true`, `seconds_since_last_packet` updating).
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -620,19 +638,22 @@ from before this date, that history no longer exists.
 - Test coverage (`tests/`) is parser/classifier/validation-level only
   -- no integration tests against the real `tcpdump`/`nmap`/`mtr`/
   `nmcli` binaries themselves (`test_pcap.py`'s rotation/pruning tests
-  use a process-spawn stand-in, not real tcpdump), the actual
+  use a process-spawn stand-in, not real tcpdump; `dispatcher.py`'s
+  real capture loop isn't exercised in pytest at all, deliberately --
+  see `test_dispatcher.py`'s docstring for why), the actual
   background-thread listeners, or a live FastAPI app with startup
   events firing. Those still rely on the manual
   live-verification-on-the-Pi discipline described throughout this
   file.
-- V0.2.3 foundation work is partway done (see Summary above) --
-  route-file splitting, the shared capture dispatcher, subsystem
-  health reporting, and CI are agreed but not yet started.
+- V0.2.3 foundation work is nearly done (see Summary above) -- only a
+  centralized command-execution helper and CI remain.
 
 ## Next steps
 
-- Continue the V0.2.3 foundation sequence: split
-  `backend/api/routes.py` into per-feature route modules next.
+- Continue the V0.2.3 foundation sequence: CI running `pytest` on
+  every push next (the command-execution helper is meant to be
+  applied incrementally to new code rather than as its own dedicated
+  pass).
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).

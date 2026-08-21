@@ -512,14 +512,17 @@ starting the riskier industrial-protocol work above:
   ~100MB, and saved captures are pruned oldest-first past ~1GB total
   -- confirmed live against real tcpdump/eth0 traffic (temporarily
   lowered thresholds to force both rotation and pruning to trigger)
-* [ ] `backend/api/routes.py` split into per-feature route modules --
-  implemented, pending live verification
-* [ ] Shared packet-capture dispatcher (one `tcpdump` process feeding
-  LLDP/CDP/MNDP/Traffic Stats, instead of one each) -- implemented,
-  pending live verification
-* [ ] Subsystem health reporting (`capture_dispatcher` in
+* [x] `backend/api/routes.py` split into per-feature route modules --
+  confirmed live (all 40 endpoints byte-identical, `openapi()` diffed
+  before/after)
+* [x] Shared packet-capture dispatcher (one `tcpdump` process feeding
+  LLDP/CDP/MNDP/Traffic Stats, instead of one each) -- confirmed live:
+  `ps aux` shows exactly one `tcpdump -i eth0 -U -nn -w -` process
+  (was four), and LLDP/CDP/MNDP all still populate correctly from a
+  real MikroTik neighbor through the shared feed
+* [x] Subsystem health reporting (`capture_dispatcher` in
   `/api/status`: is the shared capture actually running, when did it
-  last see a packet) -- implemented, pending live verification
+  last see a packet) -- confirmed live
 * [ ] CI running the test suite on every push
 
 ## Safety
