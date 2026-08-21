@@ -55,7 +55,12 @@
         <input id="modbus-address" type="number" min="0" max="65535" placeholder="0" autocomplete="off" />
         <label for="modbus-quantity">Quantity</label>
         <input id="modbus-quantity" type="number" min="1" max="2000" placeholder="10" autocomplete="off" />
-        <button id="modbus-read-btn" type="submit">Read</button>
+        <label for="modbus-interval">Auto-refresh interval, seconds (blank = single read)</label>
+        <input id="modbus-interval" type="number" min="1" max="3600" placeholder="blank = single read" autocomplete="off" />
+        <div class="button-row">
+          <button id="modbus-read-btn" type="submit">Read</button>
+          <button id="modbus-stop-btn" type="button" disabled>Stop</button>
+        </div>
       </form>
       <p id="modbus-status" class="card-hint"></p>
       <div class="table-scroll">
