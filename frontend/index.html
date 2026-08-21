@@ -207,8 +207,8 @@
       <form id="ping-form">
         <label for="ping-host">Host or IP</label>
         <input id="ping-host" type="text" value="8.8.8.8" autocomplete="off" />
-        <label for="ping-count">Count (blank = continuous)</label>
-        <input id="ping-count" type="number" min="1" max="1000" placeholder="4" autocomplete="off" />
+        <label for="ping-count">Count (0 = continuous)</label>
+        <input id="ping-count" type="number" min="0" max="1000" value="4" autocomplete="off" />
         <div class="button-row">
           <button id="ping-start-btn" type="submit">Start</button>
           <button id="ping-stop-btn" type="button" disabled>Stop</button>
@@ -264,7 +264,7 @@
       </p>
       <form id="capture-form">
         <label for="capture-duration">Duration, seconds (blank = until stopped)</label>
-        <input id="capture-duration" type="number" min="1" max="3600" placeholder="60" autocomplete="off" />
+        <input id="capture-duration" type="number" min="1" max="3600" value="60" autocomplete="off" />
         <label for="capture-filter">BPF filter (optional)</label>
         <input id="capture-filter" type="text" placeholder="tcp port 502" autocomplete="off" />
         <div class="button-row">

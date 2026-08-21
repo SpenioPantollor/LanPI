@@ -781,7 +781,12 @@ async function startPing(event) {
   if (!host) return;
   saveFieldValues("lanpi-ping-config", ["ping-host", "ping-count"]);
 
-  const count = countValue ? parseInt(countValue, 10) : null;
+  // 0 (or blank) means continuous -- the backend's own contract is
+  // just "count: null = continuous", this is a UI-only convention so
+  // "0" reads as an explicit, discoverable way to ask for unlimited
+  // rather than relying on an empty field.
+  const parsedCount = countValue ? parseInt(countValue, 10) : 0;
+  const count = parsedCount > 0 ? parsedCount : null;
 
   try {
     const res = await fetch("/api/tools/ping/start", {
