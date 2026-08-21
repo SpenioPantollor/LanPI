@@ -260,7 +260,9 @@
       <h2>Packet Capture</h2>
       <p class="card-hint">
         Captures raw traffic on eth0 to a .pcap file for later analysis
-        in Wireshark.
+        in Wireshark. Long captures automatically split into a new
+        file every ~100MB; saved captures are automatically pruned
+        (oldest first) once total storage passes ~1GB.
       </p>
       <form id="capture-form">
         <label for="capture-duration">Duration, seconds (blank = until stopped)</label>
@@ -278,7 +280,7 @@
         <dt>Elapsed</dt>
         <dd id="capture-elapsed">-</dd>
       </dl>
-      <h3>Saved captures</h3>
+      <h3>Saved captures (<span id="capture-storage">-</span>)</h3>
       <ul id="capture-list" class="wifi-list"></ul>
     </section>
 

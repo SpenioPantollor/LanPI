@@ -67,7 +67,7 @@ original item 1 -- only port 8000 gets blocked there, not port 22.
   requires a newer Python, so pip's resolver silently finds no
   matching version. Not a bug in the constraint; the Pi (the real
   target, Python 3.13) is what matters and works.
-- Automated tests: `pytest` suite added under `tests/` (71 tests, all
+- Automated tests: `pytest` suite added under `tests/` (77 tests, all
   passing) -- the hand-rolled LLDP/CDP/MNDP TLV parsers (synthetic
   frames, no tcpdump needed), the traffic-stats classifier including
   this session's talker-merge and self-MAC-exclusion logic, the Modbus

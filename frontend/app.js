@@ -597,9 +597,13 @@ async function loadCaptureStatus() {
 
 async function loadCaptureList() {
   const listEl = document.getElementById("capture-list");
+  const storageEl = document.getElementById("capture-storage");
   try {
     const res = await fetch("/api/capture/list");
     const captures = await res.json();
+
+    const totalBytes = captures.reduce((sum, c) => sum + c.size_bytes, 0);
+    storageEl.textContent = `${formatBytes(totalBytes)} / 1 GB`;
 
     listEl.innerHTML = "";
     if (captures.length === 0) {
@@ -635,8 +639,13 @@ let capturePollTimer = null;
 async function pollCaptureStatus() {
   const running = await loadCaptureStatus();
   if (running && !capturePollTimer) {
+    let tick = 0;
     capturePollTimer = setInterval(async () => {
       const stillRunning = await loadCaptureStatus();
+      tick += 1;
+      if (stillRunning && tick % 5 === 0) {
+        loadCaptureList(); // periodic refresh so rotated-in parts show up live, not just on stop
+      }
       if (!stillRunning) {
         clearInterval(capturePollTimer);
         capturePollTimer = null;

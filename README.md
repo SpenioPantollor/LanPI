@@ -504,8 +504,9 @@ starting the riskier industrial-protocol work above:
 * [x] Management interface (port 8000) blocked on `eth0` via
   `nftables` (Rule 7 in `ARCHITECTURE.MD`), SSH (22) deliberately left
   open there as a recovery path -- confirmed live
-* [ ] Capture storage limits (size/space caps on recorded `.pcap`
-  files)
+* [ ] Capture storage limits: captures rotate into a new file every
+  ~100MB, and saved captures are pruned oldest-first past ~1GB total
+  -- implemented, pending live verification
 * [ ] `backend/api/routes.py` split into per-feature route modules
 * [ ] Shared packet-capture dispatcher (one `tcpdump` process feeding
   LLDP/CDP/MNDP/Traffic Stats, instead of one each)
