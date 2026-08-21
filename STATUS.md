@@ -30,9 +30,14 @@ would have been substantially redundant with it.
 
 **V0.3 (industrial Ethernet support) started 2026-08-17**: Modbus TCP
 read client (coils/discrete inputs/holding/input registers) done,
-protocol logic verified against a local test server -- not yet
-against a real Modbus device, none available. PROFINET DCP/traffic
-detection, S7 diagnostics, and industrial device ID are still open.
+protocol logic (connect/read/parse) confirmed against **a real Modbus
+TCP slave on the network**, not just the local test server used
+during development. The Kamstrup device templates (specific register
+addresses, float32 word order) are still unconfirmed against an
+actual Kamstrup meter, since that slave wasn't one -- protocol
+mechanics and register-map accuracy are separate claims. PROFINET
+DCP/traffic detection, S7 diagnostics, and industrial device ID are
+still open.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -502,17 +507,22 @@ from before this date, that history no longer exists.
   (10000) would have made the page's own "All (1-65535)" preset button
   always fail its own validation; removed the redundant cap since
   1-65535 was already the real bound.
-- Modbus TCP read: protocol logic **confirmed against a local fake
-  Modbus TCP server** (not a real device -- none available): correct
-  holding-register value decoding, correct bit-packed coil decoding
-  (alternating on/off pattern round-tripped correctly), connection
-  refused handled gracefully, function-code/quantity validation
-  rejects bad input before any request goes out, and a genuine Modbus
-  exception response (Illegal Data Address) was parsed into a
-  readable message rather than crashing or showing raw bytes. Passive
-  mode's "no source IP" error path confirmed live on the real Pi.
-  **Not yet exercised against a real PLC/Modbus device** -- next
-  real-hardware test when one's available. Two real Kamstrup device
+- Modbus TCP read: protocol logic first confirmed against a local fake
+  Modbus TCP server (correct holding-register value decoding, correct
+  bit-packed coil decoding, connection refused handled gracefully,
+  function-code/quantity validation rejects bad input before any
+  request goes out, a genuine Modbus exception response parsed into a
+  readable message rather than raw bytes), **then confirmed again
+  against a real Modbus TCP slave on the network** (192.168.88.21):
+  function code 3 (holding registers) returned real, changing values;
+  function code 4 (input registers) correctly came back with a genuine
+  "Illegal Function" exception, since that device doesn't support it
+  -- both outcomes exactly matched what the code should do. Passive
+  mode's "no source IP" error path confirmed live on the real Pi too.
+  **What's still unconfirmed**: the Kamstrup-specific device templates
+  (register addresses, float32 word order) -- protocol mechanics and
+  a specific manufacturer's register-map accuracy are separate claims,
+  and the slave tested against wasn't a Kamstrup meter. Two Kamstrup
   templates (types 300/302, 41+52 registers, from the maintainer's own
   documentation) added to `config/modbus_templates.json` (tracked in
   git -- a register map is manufacturer documentation, not site data),
@@ -535,10 +545,11 @@ from before this date, that history no longer exists.
 
 - PROFINET/S7 traffic detection implemented but not yet confirmed
   against a real device (see Verified section above).
-- Modbus TCP read client implemented but not yet confirmed against a
-  real Modbus device (see Verified section above) -- PROFINET DCP/
-  traffic detection, S7 diagnostics, and industrial device ID (rest
-  of V0.3) not started.
+- Modbus TCP read client's protocol logic is confirmed against a real
+  Modbus slave (see Verified section above), but the Kamstrup device
+  templates' actual register map is not -- PROFINET DCP/traffic
+  detection, S7 diagnostics, and industrial device ID (rest of V0.3)
+  not started.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
@@ -549,8 +560,9 @@ from before this date, that history no longer exists.
 
 ## Next steps
 
-- Re-verify Modbus TCP read against a real PLC/Modbus device when
-  one's available.
+- Verify the Kamstrup device templates' actual register map against a
+  real Kamstrup meter when one's available (the read protocol itself
+  is already confirmed against a real Modbus slave).
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
 - Re-verify the captive-portal auto-open flow with a phone.

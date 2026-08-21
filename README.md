@@ -430,10 +430,14 @@ Industrial Ethernet support:
 * [ ] PROFINET traffic detection
 * [ ] Siemens S7 diagnostics
 * [x] Modbus TCP diagnostics (read-only: coils, discrete inputs,
-  holding/input registers) -- protocol logic confirmed against a
-  local test server (correct register/coil decoding, exception
-  handling); **not yet confirmed against a real Modbus device**, none
-  available to test against yet
+  holding/input registers) -- protocol logic (connect, read holding
+  registers, response parsing) **confirmed against a real Modbus TCP
+  slave on the network**, not just the local test server used during
+  development. The Kamstrup-specific device templates (register
+  addresses, float32 word order) are separate from the protocol
+  itself and **not yet confirmed against an actual Kamstrup meter** --
+  the slave tested against wasn't one, so the general read mechanism
+  works but the Kamstrup register map's accuracy is still unverified
 * [ ] Industrial device identification
 
 ## Safety
