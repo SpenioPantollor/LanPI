@@ -77,28 +77,35 @@ SSID: LanPi
 IP:   172.24.58.1
 ```
 
-The web interface and SSH will be accessible through the management interface.
+The web interface and SSH are accessible through the management interface.
 
 ### eth0
 
 The Ethernet interface is dedicated exclusively to the network under test.
 
-Supported operating modes are planned to include:
+Supported operating modes:
 
-* Passive / no IP address
+* Passive / no IP address (the default)
 * DHCP client
 * Static IP configuration
 
 The management and test networks must remain isolated. LanPi will not bridge `wlan0` and `eth0`.
 
+LanPi's own management interface (port 8000, the web UI/API) is
+firewalled off `eth0` via `nftables` -- a device connected to the port
+under test cannot reach LanPi's own dashboard through it. SSH (22) is
+a deliberate exception, left open on `eth0` as a recovery path if
+`wlan0` becomes unreachable (see `ARCHITECTURE.MD` Rule 7).
+
 ## Features
 
-Everything below is implemented and live-verified against real
-hardware unless marked otherwise (see `STATUS.md` for the specifics
-of each verification, and the Development Roadmap section below for
-the checklist this is derived from). Each entry notes what it's
-actually built on, since "what tool/library does X" was a recurring
-question worth answering once here rather than per-feature.
+What LanPi actually does today. Everything below is implemented and
+live-verified against real hardware unless marked otherwise (see
+`STATUS.md` for the specifics of each verification -- this section
+only describes current behavior, not how it got here). Each entry
+notes what it's actually built on, since "what tool/library does X"
+was a recurring question worth answering once here rather than
+per-feature.
 
 ### Ethernet Port Status
 
@@ -140,12 +147,11 @@ port can never hijack the Pi's own outbound traffic away from `wlan0`
 ### Network Discovery
 
 * **LLDP / CDP / MNDP** -- hand-rolled parsers (no `scapy` or any
-  packet-parsing library), each a background thread streaming raw
-  frames from `tcpdump -w -`'s pcap output and decoding the relevant
-  TLV structure directly with Python's `struct` module: LLDP's plain
-  EtherType framing, CDP's 802.3 + LLC/SNAP framing, and MNDP's UDP
-  broadcast (port 5678) framing. All three confirmed against real
-  neighbors (a MikroTik router sends LLDP, CDP, and MNDP all three).
+  packet-parsing library), decoding the relevant TLV structure
+  directly with Python's `struct` module: LLDP's plain EtherType
+  framing, CDP's 802.3 + LLC/SNAP framing, and MNDP's UDP broadcast
+  (port 5678) framing. All three confirmed against real neighbors (a
+  MikroTik router sends LLDP, CDP, and MNDP all three).
 * **ARP scan** -- via the `arp-scan` CLI tool, `--localnet` or an
   explicit network.
 * **IP scanner** -- via `nmap -sn` (ping-sweep host discovery,
@@ -210,11 +216,9 @@ format.
 ### Passive Traffic Analysis
 
 Own dedicated Traffic page: live packet/byte counters, broadcast/
-multicast/unicast split, and a **Top Talkers** table, built on a
-background `tcpdump` capture with **no BPF filter** (unlike the
-narrowly-filtered LLDP/CDP/MNDP listeners, this one has to see
-everything) and hand-rolled classification of each frame's Ethernet/
-IPv4/ARP headers plus UDP/TCP ports (no deep payload inspection):
+multicast/unicast split, and a **Top Talkers** table, via hand-rolled
+classification of each frame's Ethernet/IPv4/ARP headers plus UDP/TCP
+ports (no deep payload inspection):
 
 * Per-protocol counts: ARP, IPv4, IPv6, DHCP, LLDP, CDP, mDNS, SSDP,
   PROFINET (EtherType `0x8892`), S7 (TCP port 102)
@@ -240,6 +244,12 @@ downloadable and directly openable in Wireshark. Runs as a background
 process (mirrors Ping's design) with an optional fixed duration or
 manual stop.
 
+Storage is self-managing: a long-running capture automatically splits
+into a new file every ~100MB (clean stop/restart, not `tcpdump`'s own
+`-C`, which breaks the `.pcap` extension), and saved captures are
+pruned oldest-first once total storage passes ~1GB -- a capture left
+running unattended can't silently fill the SD card.
+
 ## Software Architecture
 
 What LanPi is actually built on (as opposed to originally planned --
@@ -248,17 +258,26 @@ changed along the way):
 
 * **Backend**: Python, FastAPI, uvicorn -- no ORM, no database,
   everything is either read live from `/proc`/`/sys`/CLI tools or held
-  in memory.
+  in memory. Routes are split by feature under `backend/api/routes/`
+  rather than one large file.
 * **Network configuration**: NetworkManager, exclusively via `nmcli`
   (no `dhcpcd`-based Pi OS releases supported).
 * **Neighbor discovery** (LLDP/CDP/MNDP) and **traffic
-  statistics/Top Talkers**: hand-rolled parsers reading raw
-  `tcpdump -w -` pcap streams directly with `struct` -- no `scapy` or
-  any packet-parsing library anywhere in the project.
+  statistics/Top Talkers**: hand-rolled parsers, no `scapy` or any
+  packet-parsing library anywhere in the project. All four share one
+  background `tcpdump -w -` capture (`backend/capture/dispatcher.py`)
+  instead of running one process each; each listener filters and
+  parses the frames it cares about from that shared feed with
+  `struct`. The dispatcher's own health (is it actually running, when
+  did it last see a packet) is exposed in `/api/status`.
 * **Modbus TCP**: hand-rolled client (`socket` + `struct`) -- no
   `pymodbus` or any Modbus library.
 * **TCP port test**: hand-rolled (`socket`), no library.
 * **Packet capture**: `tcpdump`, writing real `.pcap` files.
+* **Shelling out to system binaries** (`tcpdump`, `nmap`, `mtr`,
+  `nmcli`, `ethtool`, ...): consistent binary discovery and
+  `subprocess.run` wrapping via `backend/shell.py`, rather than each
+  module rolling its own.
 * **IP scanning**: `nmap -sn`.
 * **Port scanning**: `nmap -sS` (needs real root -- run via `sudo`,
   not `setcap`, see `STATUS.md` for why `setcap` alone silently drops
@@ -412,125 +431,34 @@ notably *not* the 3.9 shipped with older macOS, which is a real gap
 for local development on such a machine, not a limitation of the tests
 themselves.
 
-## Development Roadmap
+The same suite runs automatically on every push to `main` and every
+pull request via GitHub Actions (`.github/workflows/tests.yml`).
 
-### Version 0.1
+## Roadmap
 
-Initial usable network tester. Checked = implemented **and** verified
-against the real deployed Pi (see `STATUS.md` for the specifics of
-each test):
+Not implemented yet. See `STATUS.md` for day-to-day progress and
+`ARCHITECTURE.MD` for the longer-term plan and past decisions behind
+these.
 
-* [x] Wi-Fi management (client + fallback AP) — incl. a real iPhone
-  joining the fallback AP end-to-end
-* [x] Web interface — Dashboard + Settings pages
-* [x] Ethernet link information
-* [x] Passive Ethernet mode
-* [x] DHCP mode
-* [x] Static IPv4 configuration
-* [x] Ping
-* [x] LLDP discovery — confirmed with a real neighbor after connecting
-  to a managed router
-* [x] CDP discovery — **fully confirmed working**, including a real
-  neighbor (MikroTik RouterOS turns out to send CDP-compatible
-  announcements too, not just its own MNDP — corrected after
-  initially assuming otherwise)
-* [x] ARP scan — found real hosts (IP/MAC/vendor) on the local network
-* [x] TCP port test — confirmed both `open` (a real listening port)
-  and `timeout` (an unreachable host) outcomes; sourced specifically
-  from eth0's address so it can't silently go out wlan0 instead
-* [x] PCAP capture — confirmed start/stop (duration-based and manual),
-  BPF filtering, list, download (valid .pcap output), delete, and
-  input validation (invalid filter, path traversal on filenames)
+**Industrial protocols** (deliberately deferred until real PLC
+hardware is available to test against):
 
-### Version 0.2
+* PROFINET DCP discovery and traffic detection
+* Siemens S7 diagnostics
+* Industrial device identification
 
-Extended network diagnostics:
+**General diagnostics:**
 
-* [x] IP scanner (subnet host discovery) -- confirmed live, real
-  13-host scan with MAC/vendor
-* [x] Port scanner (port-range scan of a host) -- confirmed live, real
-  open ports found (SSH/DNS/HTTP) on a MikroTik router
-* [x] MNDP discovery -- confirmed with a real MikroTik neighbor
-* [x] DHCP lease details (server, lease time, domain) alongside the
-  existing gateway/DNS -- confirmed live
-* [x] Traffic statistics -- confirmed live (own dedicated Traffic page)
-* [x] Top talkers -- ranked by cumulative bytes over the summary
-  period (matches the Summary card above it), sortable by any column,
-  confirmed live
-* [x] MTR / traceroute -- confirmed live, real multi-hop trace
-
-### Version 0.3
-
-Industrial Ethernet support:
-
-* [ ] PROFINET DCP discovery
-* [ ] PROFINET traffic detection
-* [ ] Siemens S7 diagnostics
-* [x] Modbus TCP diagnostics (read-only: coils, discrete inputs,
-  holding/input registers) -- protocol logic (connect, read holding
-  registers, response parsing) **confirmed against a real Modbus TCP
-  slave on the network**, not just the local test server used during
-  development. The Kamstrup-specific device templates (register
-  addresses, float32 word order) are separate from the protocol
-  itself and **not yet confirmed against an actual Kamstrup meter** --
-  the slave tested against wasn't one, so the general read mechanism
-  works but the Kamstrup register map's accuracy is still unverified
-* [ ] Industrial device identification
-
-General diagnostics, proposed as part of the v0.2.3 Foundation brief
-but moved here (2026-08-21): they're genuinely new user-facing
-features, not "foundation" hardening, so they don't belong in a pass
-whose explicit goal was no major new features:
-
-* [ ] Unified device registry -- a single list merging every
+* Unified device registry -- a single list merging every
   passively-observed device (LLDP/CDP/MNDP neighbors, Top Talkers,
-  scan results) into one view. This is substantially the same idea as
-  the "passive device discovery" feature already considered and
-  dropped earlier (see `STATUS.md`) as redundant with Traffic's Top
-  Talkers table -- worth revisiting as its own deliberate feature
-  decision when the time comes, not assumed as infrastructure work
-* [ ] Link event history (up/down/speed-change log for `eth0`, not
-  just its current snapshot state)
-* [ ] Duplicate IP detection on the TEST PORT
-* [ ] Rogue/unexpected DHCP server detection on the TEST PORT
-
-### Version 0.2.3 — Foundation
-
-Not new features -- hardening what V0.1/V0.2 already built, before
-starting the riskier industrial-protocol work above:
-
-* [x] Centralized version management (`VERSION` file, read by both
-  FastAPI's own metadata and `/api/status`) -- confirmed live
-* [x] Pinned dependency versions (`requirements.txt`, matched to what's
-  actually verified on the Pi)
-* [x] Automated tests (`pytest`, see Running Tests below) -- parser/
-  classifier/validation logic covered without needing real hardware
-* [x] Management interface (port 8000) blocked on `eth0` via
-  `nftables` (Rule 7 in `ARCHITECTURE.MD`), SSH (22) deliberately left
-  open there as a recovery path -- confirmed live
-* [x] Capture storage limits: captures rotate into a new file every
-  ~100MB, and saved captures are pruned oldest-first past ~1GB total
-  -- confirmed live against real tcpdump/eth0 traffic (temporarily
-  lowered thresholds to force both rotation and pruning to trigger)
-* [x] `backend/api/routes.py` split into per-feature route modules --
-  confirmed live (all 40 endpoints byte-identical, `openapi()` diffed
-  before/after)
-* [x] Shared packet-capture dispatcher (one `tcpdump` process feeding
-  LLDP/CDP/MNDP/Traffic Stats, instead of one each) -- confirmed live:
-  `ps aux` shows exactly one `tcpdump -i eth0 -U -nn -w -` process
-  (was four), and LLDP/CDP/MNDP all still populate correctly from a
-  real MikroTik neighbor through the shared feed
-* [x] Subsystem health reporting (`capture_dispatcher` in
-  `/api/status`: is the shared capture actually running, when did it
-  last see a packet) -- confirmed live
-* [x] Shared command-execution helper (`backend/shell.py`): binary
-  discovery + a consistent `subprocess.run` wrapper, replacing ~12
-  near-identical copies across `backend/network/`, `backend/tools/`,
-  `backend/capture/` -- confirmed live (link status, eth0 mode, Wi-Fi,
-  ARP scan, ping, MTR, system/power status all re-verified against
-  real hardware/network after the migration)
-* [x] CI running the test suite on every push -- GitHub Actions
-  (`.github/workflows/tests.yml`), confirmed green on the first push
+  scan results) into one view. Overlaps with a "passive device
+  discovery" feature already considered and dropped once as redundant
+  with Traffic's Top Talkers table (see `STATUS.md`) -- worth a
+  deliberate decision when the time comes, not assumed.
+* Link event history (up/down/speed-change log for `eth0`, not just
+  its current snapshot state)
+* Duplicate IP detection on the TEST PORT
+* Rogue/unexpected DHCP server detection on the TEST PORT
 
 ## Safety
 
