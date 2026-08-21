@@ -12,6 +12,7 @@ from backend.discovery import cdp, lldp, mndp
 from backend.network import ap, eth0_mode, link, wifi
 from backend.tools import arp_scan
 from backend.tools import ip_scanner
+from backend.tools import modbus
 from backend.tools import mtr as mtr_tool
 from backend.tools import ping as ping_tool
 from backend.tools import port_scanner
@@ -289,6 +290,23 @@ def port_scan_status() -> dict:
 @router.post("/tools/port-scan/stop")
 def port_scan_stop() -> dict:
     return port_scanner.stop()
+
+
+class ModbusReadRequest(BaseModel):
+    host: str
+    port: Optional[int] = 502
+    unit_id: int
+    function_code: int
+    address: int
+    quantity: int
+
+
+@router.post("/tools/modbus/read")
+def modbus_read(body: ModbusReadRequest) -> dict:
+    return modbus.read(
+        body.host, body.unit_id, body.function_code, body.address,
+        body.quantity, body.port or 502,
+    )
 
 
 @router.get("/traffic/stats")

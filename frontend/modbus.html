@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>LanPi Modbus</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Modbus TCP</h1>
+        <p class="subtitle">Read coils / registers on eth0</p>
+      </div>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/traffic.html">Traffic</a>
+        <a href="/ip-scanner.html">IP Scanner</a>
+        <a href="/port-scanner.html">Port Scanner</a>
+        <a href="/modbus.html" class="active">Modbus</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="stacked-cards">
+    <section class="card">
+      <h2>Read</h2>
+      <p class="card-hint">
+        Sourced from eth0 &mdash; needs DHCP or Static mode.
+        Read-only: coils, discrete inputs, holding registers, input
+        registers (function codes 1-4). No write support by design
+        &mdash; LanPi defaults to passive, non-disruptive diagnostics.
+      </p>
+      <form id="modbus-form">
+        <label for="modbus-host">Host or IP</label>
+        <input id="modbus-host" type="text" placeholder="192.168.20.5" autocomplete="off" />
+        <label for="modbus-port">Port</label>
+        <input id="modbus-port" type="number" min="1" max="65535" placeholder="502" autocomplete="off" />
+        <label for="modbus-unit">Unit ID</label>
+        <input id="modbus-unit" type="number" min="0" max="255" placeholder="1" autocomplete="off" />
+        <label for="modbus-function">Function</label>
+        <select id="modbus-function">
+          <option value="1">01 - Read Coils</option>
+          <option value="2">02 - Read Discrete Inputs</option>
+          <option value="3" selected>03 - Read Holding Registers</option>
+          <option value="4">04 - Read Input Registers</option>
+        </select>
+        <label for="modbus-address">Starting Address</label>
+        <input id="modbus-address" type="number" min="0" max="65535" placeholder="0" autocomplete="off" />
+        <label for="modbus-quantity">Quantity</label>
+        <input id="modbus-quantity" type="number" min="1" max="2000" placeholder="10" autocomplete="off" />
+        <button id="modbus-read-btn" type="submit">Read</button>
+      </form>
+      <p id="modbus-status" class="card-hint"></p>
+      <div class="table-scroll">
+        <table id="modbus-results" class="data-table" hidden>
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody id="modbus-results-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; <span id="footer-year">2026</span> LanPi &mdash; made in Lithuania 🇱🇹</p>
+    <p id="footer-date">-</p>
+  </footer>
+
+  <script src="modbus.js"></script>
+</body>
+</html>
