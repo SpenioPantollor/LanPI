@@ -36,12 +36,13 @@ caps:
 
 from __future__ import annotations
 
-import shutil
 import signal
 import subprocess
 import threading
 import time
 from pathlib import Path
+
+from backend import shell
 
 CAPTURE_DIR = Path(__file__).resolve().parent.parent.parent / "captures"
 _TCPDUMP_CANDIDATES = ["/usr/bin/tcpdump", "/usr/sbin/tcpdump", "tcpdump"]
@@ -66,11 +67,7 @@ _state = {
 
 
 def _find_tcpdump() -> str | None:
-    for candidate in _TCPDUMP_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
+    return shell.find_binary(_TCPDUMP_CANDIDATES)
 
 
 def _safe_filename(name: str) -> bool:

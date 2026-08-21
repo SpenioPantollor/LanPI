@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import time
+
+from backend import shell
 
 _VCGENCMD_CANDIDATES = ["/usr/bin/vcgencmd", "/opt/vc/bin/vcgencmd", "vcgencmd"]
 
@@ -37,24 +38,15 @@ def _read_file(path: str) -> str | None:
 
 
 def _find_vcgencmd() -> str | None:
-    for candidate in _VCGENCMD_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
+    return shell.find_binary(_VCGENCMD_CANDIDATES)
 
 
 def get_power_status() -> dict:
     vcgencmd = _find_vcgencmd()
     if not vcgencmd:
         return {"available": False}
-    try:
-        result = subprocess.run(
-            [vcgencmd, "get_throttled"], capture_output=True, text=True, timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return {"available": False}
-    if result.returncode != 0:
+    result = shell.run([vcgencmd, "get_throttled"], timeout=5)
+    if result is None or result.returncode != 0:
         return {"available": False}
 
     raw = result.stdout.strip()

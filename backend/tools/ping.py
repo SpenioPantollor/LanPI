@@ -16,10 +16,11 @@ live-computed min/avg/max with ping's own (more precise) numbers.
 from __future__ import annotations
 
 import re
-import shutil
 import signal
 import subprocess
 import threading
+
+from backend import shell
 
 _PING_CANDIDATES = ["/bin/ping", "/usr/bin/ping", "ping"]
 _REPLY_RE = re.compile(r"icmp_seq=(\d+) ttl=(\d+) time=([\d.]+) ms")
@@ -46,11 +47,7 @@ _state = {
 
 
 def _find_ping() -> str | None:
-    for candidate in _PING_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
+    return shell.find_binary(_PING_CANDIDATES)
 
 
 def _reader_loop(process: subprocess.Popen, host: str) -> None:

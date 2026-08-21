@@ -6,39 +6,25 @@ wlan0 / NetworkManager Wi-Fi connections -- never eth0.
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import time
 
+from backend import shell
 from backend.network import ap
 
 _INTERFACE = "wlan0"
 _NMCLI_CANDIDATES = ["/usr/bin/nmcli", "/bin/nmcli", "nmcli"]
-_SUDO_CANDIDATES = ["/usr/bin/sudo", "/bin/sudo", "sudo"]
-
-
-def _find_binary(candidates: list[str]) -> str | None:
-    for candidate in candidates:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
 
 
 def _find_nmcli() -> str | None:
-    return _find_binary(_NMCLI_CANDIDATES)
+    return shell.find_binary(_NMCLI_CANDIDATES)
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess | None:
     nmcli = _find_nmcli()
     if not nmcli:
         return None
-    try:
-        return subprocess.run(
-            [nmcli, *args], capture_output=True, text=True, timeout=20
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+    return shell.run([nmcli, *args], timeout=20)
 
 
 def _run_privileged(args: list[str]) -> subprocess.CompletedProcess | None:
@@ -47,15 +33,9 @@ def _run_privileged(args: list[str]) -> subprocess.CompletedProcess | None:
     user doesn't get without an active login session -- go through
     sudo instead (passwordless for this user)."""
     nmcli = _find_nmcli()
-    sudo = _find_binary(_SUDO_CANDIDATES)
-    if not nmcli or not sudo:
+    if not nmcli:
         return None
-    try:
-        return subprocess.run(
-            [sudo, nmcli, *args], capture_output=True, text=True, timeout=30
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+    return shell.run_privileged([nmcli, *args], timeout=30)
 
 
 def _parse_terse(output: str, fields: list[str]) -> list[dict]:

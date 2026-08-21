@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import signal
 import subprocess
 import threading
 
+from backend import shell
 from backend.network import eth0_mode
 
 _MTR_CANDIDATES = ["/usr/bin/mtr", "/usr/sbin/mtr", "mtr"]
@@ -43,11 +43,7 @@ _state = {
 
 
 def _find_mtr() -> str | None:
-    for candidate in _MTR_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
+    return shell.find_binary(_MTR_CANDIDATES)
 
 
 def _eth0_source_ip() -> str | None:

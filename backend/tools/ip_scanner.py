@@ -27,11 +27,11 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import signal
 import subprocess
 import threading
 
+from backend import shell
 from backend.network import eth0_mode
 
 _NMAP_CANDIDATES = ["/usr/bin/nmap", "/usr/sbin/nmap", "nmap"]
@@ -48,14 +48,6 @@ _state = {
     "hosts": [],
     "message": None,
 }
-
-
-def _find_binary(candidates: list[str]) -> str | None:
-    for candidate in candidates:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
 
 
 def _eth0_source_ip() -> str | None:
@@ -107,10 +99,10 @@ def start(target: str, interface: str = "eth0") -> dict:
     if target.startswith("-"):
         return {"ok": False, "message": "invalid target"}
 
-    nmap_bin = _find_binary(_NMAP_CANDIDATES)
+    nmap_bin = shell.find_binary(_NMAP_CANDIDATES)
     if not nmap_bin:
         return {"ok": False, "message": "nmap not available"}
-    sudo_bin = _find_binary(_SUDO_CANDIDATES)
+    sudo_bin = shell.find_binary(_SUDO_CANDIDATES)
     if not sudo_bin:
         return {"ok": False, "message": "sudo not available"}
 

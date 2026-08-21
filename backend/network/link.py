@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
+
+from backend import shell
 
 _IP_CANDIDATES = ["/usr/bin/ip", "/bin/ip", "ip"]
 _ETHTOOL_CANDIDATES = ["/sbin/ethtool", "/usr/sbin/ethtool", "ethtool"]
@@ -16,24 +16,13 @@ _AUTONEG_RE = re.compile(r"Auto-negotiation:\s*(on|off)", re.IGNORECASE)
 _LINK_DETECTED_RE = re.compile(r"Link detected:\s*(yes|no)", re.IGNORECASE)
 
 
-def _find_binary(candidates: list[str]) -> str | None:
-    for candidate in candidates:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
-
-
 def _run(cmd: list[str]) -> str:
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.TimeoutExpired):
-        return ""
-    return result.stdout
+    result = shell.run(cmd, timeout=5)
+    return result.stdout if result else ""
 
 
 def _get_ip_link_info(interface: str) -> dict:
-    ip_bin = _find_binary(_IP_CANDIDATES)
+    ip_bin = shell.find_binary(_IP_CANDIDATES)
     if not ip_bin:
         return {}
     output = _run([ip_bin, "-j", "-s", "link", "show", interface])
@@ -46,7 +35,7 @@ def _get_ip_link_info(interface: str) -> dict:
 
 def _get_ethtool_info(interface: str) -> dict:
     info = {"speed_mbps": None, "duplex": None, "autoneg": None, "link_detected": None}
-    ethtool_bin = _find_binary(_ETHTOOL_CANDIDATES)
+    ethtool_bin = shell.find_binary(_ETHTOOL_CANDIDATES)
     if not ethtool_bin:
         return info
 

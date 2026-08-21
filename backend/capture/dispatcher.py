@@ -37,12 +37,13 @@ on, instead of each listener just quietly going stale.
 
 from __future__ import annotations
 
-import shutil
 import struct
 import subprocess
 import threading
 import time
 from typing import Callable
+
+from backend import shell
 
 _TCPDUMP_CANDIDATES = ["/usr/bin/tcpdump", "/usr/sbin/tcpdump", "tcpdump"]
 _PCAP_GLOBAL_HEADER_LEN = 24
@@ -60,11 +61,7 @@ _health = {
 
 
 def _find_tcpdump() -> str | None:
-    for candidate in _TCPDUMP_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
+    return shell.find_binary(_TCPDUMP_CANDIDATES)
 
 
 def register_handler(handler: Callable[[bytes], None]) -> None:

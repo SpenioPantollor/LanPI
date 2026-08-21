@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
-import subprocess
 import tempfile
+
+from backend import shell
 
 HOSTAPD_CONF_PATH = "/etc/hostapd/hostapd.conf"
 AP_ADDRESS = "172.24.58.1"
@@ -24,58 +24,31 @@ _AP_UP_SCRIPT = os.path.join(_REPO_DIR, "system", "lanpi-ap-up.sh")
 _AP_DOWN_SCRIPT = os.path.join(_REPO_DIR, "system", "lanpi-ap-down.sh")
 
 _SYSTEMCTL_CANDIDATES = ["/usr/bin/systemctl", "/bin/systemctl", "systemctl"]
-_SUDO_CANDIDATES = ["/usr/bin/sudo", "/bin/sudo", "sudo"]
 
 
 def activate() -> dict:
     """Bring the fallback AP up (system/lanpi-ap-up.sh)."""
-    sudo = _find_binary(_SUDO_CANDIDATES)
-    if not sudo:
-        return {"ok": False, "message": "sudo not available"}
-    try:
-        result = subprocess.run(
-            [sudo, _AP_UP_SCRIPT], capture_output=True, text=True, timeout=20
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"ok": False, "message": str(exc)}
+    result = shell.run_privileged([_AP_UP_SCRIPT], timeout=20)
+    if result is None:
+        return {"ok": False, "message": "sudo not available or command timed out"}
     return {"ok": result.returncode == 0, "message": (result.stdout or result.stderr).strip()}
 
 
 def deactivate() -> dict:
     """Tear the fallback AP down and hand wlan0 back to NetworkManager
     (system/lanpi-ap-down.sh)."""
-    sudo = _find_binary(_SUDO_CANDIDATES)
-    if not sudo:
-        return {"ok": False, "message": "sudo not available"}
-    try:
-        result = subprocess.run(
-            [sudo, _AP_DOWN_SCRIPT], capture_output=True, text=True, timeout=20
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"ok": False, "message": str(exc)}
+    result = shell.run_privileged([_AP_DOWN_SCRIPT], timeout=20)
+    if result is None:
+        return {"ok": False, "message": "sudo not available or command timed out"}
     return {"ok": result.returncode == 0, "message": (result.stdout or result.stderr).strip()}
 
 
-def _find_binary(candidates: list[str]) -> str | None:
-    for candidate in candidates:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
-
-
 def is_active() -> bool:
-    systemctl = _find_binary(_SYSTEMCTL_CANDIDATES)
+    systemctl = shell.find_binary(_SYSTEMCTL_CANDIDATES)
     if not systemctl:
         return False
-    try:
-        result = subprocess.run(
-            [systemctl, "is-active", "hostapd"],
-            capture_output=True, text=True, timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return result.stdout.strip() == "active"
+    result = shell.run([systemctl, "is-active", "hostapd"], timeout=5)
+    return result is not None and result.stdout.strip() == "active"
 
 
 def get_ssid() -> str | None:
@@ -112,33 +85,24 @@ def set_config(ssid: str, password: str | None) -> dict:
         else:
             new_lines.append(line)
 
-    sudo = _find_binary(_SUDO_CANDIDATES)
-    if not sudo:
-        return {"ok": False, "message": "sudo not available"}
-
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
             tmp.writelines(new_lines)
             tmp_path = tmp.name
-        result = subprocess.run(
-            [sudo, "cp", tmp_path, HOSTAPD_CONF_PATH],
-            capture_output=True, text=True, timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"ok": False, "message": str(exc)}
+        result = shell.run_privileged(["cp", tmp_path, HOSTAPD_CONF_PATH], timeout=5)
     finally:
         if tmp_path:
             os.unlink(tmp_path)
 
+    if result is None:
+        return {"ok": False, "message": "sudo not available or command timed out"}
     if result.returncode != 0:
         return {"ok": False, "message": result.stderr.strip()}
 
     if is_active():
-        systemctl = _find_binary(_SYSTEMCTL_CANDIDATES)
-        subprocess.run(
-            [sudo, systemctl, "restart", "hostapd"],
-            capture_output=True, text=True, timeout=10,
-        )
+        systemctl = shell.find_binary(_SYSTEMCTL_CANDIDATES)
+        if systemctl:
+            shell.run_privileged([systemctl, "restart", "hostapd"], timeout=10)
 
     return {"ok": True, "message": "Fallback AP configuration updated"}

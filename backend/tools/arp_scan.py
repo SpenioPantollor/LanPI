@@ -8,19 +8,15 @@ address already (DHCP/Static mode) to know what to scan.
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
+
+from backend import shell
 
 _ARP_SCAN_CANDIDATES = ["/usr/bin/arp-scan", "/usr/sbin/arp-scan", "arp-scan"]
 _HOST_RE = re.compile(r"^(\d+\.\d+\.\d+\.\d+)\t([0-9a-fA-F:]+)\t?(.*)$")
 
 
 def _find_arp_scan() -> str | None:
-    for candidate in _ARP_SCAN_CANDIDATES:
-        found = shutil.which(candidate)
-        if found:
-            return found
-    return None
+    return shell.find_binary(_ARP_SCAN_CANDIDATES)
 
 
 def scan(interface: str = "eth0", network: str | None = None) -> dict:
@@ -31,10 +27,9 @@ def scan(interface: str = "eth0", network: str | None = None) -> dict:
     args = [arp_scan_bin, "--interface", interface, "--retry=1", "--timeout=500"]
     args.append(network.strip() if network else "--localnet")
 
-    try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"ok": False, "message": str(exc), "hosts": []}
+    result = shell.run(args, timeout=30)
+    if result is None:
+        return {"ok": False, "message": "arp-scan failed or timed out", "hosts": []}
 
     if result.returncode != 0:
         return {"ok": False, "message": (result.stderr or result.stdout).strip(), "hosts": []}
