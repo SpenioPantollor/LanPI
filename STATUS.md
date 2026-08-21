@@ -80,6 +80,13 @@ original item 1 -- only port 8000 gets blocked there, not port 22.
   device -- pure logic and mocked I/O only. `requirements-dev.txt`
   (`pytest` + `httpx`, the latter needed by FastAPI's `TestClient`)
   keeps these dev-only deps out of the production `requirements.txt`.
+- Management interface isolation: `nftables` rule (`system/nftables.conf`,
+  ARCHITECTURE.MD Rule 7) blocks TCP/8000 on `eth0` only -- **confirmed
+  live**: `curl` to `<eth0-ip>:8000` times out, `curl` to `<wlan0-ip>:8000`
+  still returns 200, and SSH to the `eth0` IP directly still works. Per
+  the maintainer's explicit pushback on the original brief, SSH was
+  deliberately left open on `eth0` rather than isolating it entirely --
+  it's the recovery path if `wlan0` becomes unreachable.
 
 **Note on git history**: squashed to a single commit on 2026-08-17 and
 force-pushed, intentionally discarding all prior commit history.
@@ -605,14 +612,14 @@ from before this date, that history no longer exists.
   on the manual live-verification-on-the-Pi discipline described
   throughout this file.
 - V0.2.3 foundation work is partway done (see Summary above) --
-  management-interface isolation, capture storage limits, route-file
-  splitting, the shared capture dispatcher, subsystem health
-  reporting, and CI are agreed but not yet started.
+  capture storage limits, route-file splitting, the shared capture
+  dispatcher, subsystem health reporting, and CI are agreed but not
+  yet started.
 
 ## Next steps
 
-- Continue the V0.2.3 foundation sequence: management-interface
-  isolation (block port 8000 on `eth0`, keep SSH open) next.
+- Continue the V0.2.3 foundation sequence: capture storage limits
+  (size/space caps on recorded `.pcap` files) next.
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).
