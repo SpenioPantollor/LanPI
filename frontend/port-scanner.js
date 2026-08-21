@@ -1,3 +1,32 @@
+// Remembers form field values across page loads (localStorage) --
+// same pattern as app.js/modbus.js, so host/range don't need
+// retyping every time.
+function saveFieldValues(storageKey, fieldIds) {
+  const values = {};
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el) values[id] = el.value;
+  }
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(values));
+  } catch (err) {
+    // localStorage unavailable -- fields just won't persist
+  }
+}
+
+function loadFieldValues(storageKey, fieldIds) {
+  let saved = {};
+  try {
+    saved = JSON.parse(window.localStorage.getItem(storageKey)) || {};
+  } catch (err) {
+    saved = {};
+  }
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el && saved[id] !== undefined) el.value = saved[id];
+  }
+}
+
 let portScanPollTimer = null;
 
 function renderPortScanStatus(result) {
@@ -69,6 +98,7 @@ async function startPortScan(event) {
   const host = document.getElementById("port-scan-host").value.trim();
   const portRange = document.getElementById("port-scan-range").value.trim();
   if (!host || !portRange) return;
+  saveFieldValues("lanpi-port-scan-config", ["port-scan-host", "port-scan-range"]);
 
   try {
     const res = await fetch("/api/tools/port-scan/start", {
@@ -118,6 +148,7 @@ document.querySelectorAll("#port-scan-presets button").forEach((btn) => {
   });
 });
 
+loadFieldValues("lanpi-port-scan-config", ["port-scan-host", "port-scan-range"]);
 updateFooter();
 setInterval(updateFooter, 60000);
 

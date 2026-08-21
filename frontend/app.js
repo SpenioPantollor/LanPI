@@ -27,6 +27,38 @@ function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
+// Remembers form field values across page loads (localStorage), so
+// diagnostic tools don't need their host/target/etc retyped every
+// time -- same "have to type it every time" complaint as the Modbus
+// page had, generalized here for every Dashboard tool with a text
+// input (user feedback).
+function saveFieldValues(storageKey, fieldIds) {
+  const values = {};
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el) values[id] = el.value;
+  }
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(values));
+  } catch (err) {
+    // localStorage unavailable (private browsing, quota) -- fields
+    // just won't persist across reloads, not worth surfacing an error
+  }
+}
+
+function loadFieldValues(storageKey, fieldIds) {
+  let saved = {};
+  try {
+    saved = JSON.parse(window.localStorage.getItem(storageKey)) || {};
+  } catch (err) {
+    saved = {};
+  }
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el && saved[id] !== undefined) el.value = saved[id];
+  }
+}
+
 async function loadStatus() {
   const statusEl = document.getElementById("status-value");
   const hostnameEl = document.getElementById("hostname-value");
@@ -322,6 +354,7 @@ async function loadMndp() {
 async function runArpScan(event) {
   event.preventDefault();
   const network = document.getElementById("arp-scan-network").value.trim();
+  saveFieldValues("lanpi-arp-scan-config", ["arp-scan-network"]);
   const scanBtn = document.getElementById("arp-scan-btn");
   const resultsEl = document.getElementById("arp-scan-results");
 
@@ -438,6 +471,7 @@ async function startMtr(event) {
   const cyclesValue = document.getElementById("mtr-cycles").value.trim();
   const cycles = cyclesValue ? parseInt(cyclesValue, 10) : 10;
   if (!host) return;
+  saveFieldValues("lanpi-mtr-config", ["mtr-host", "mtr-cycles"]);
 
   try {
     const res = await fetch("/api/tools/mtr/start", {
@@ -475,6 +509,7 @@ async function submitTcpTest(event) {
   const stateEl = document.getElementById("tcp-test-state");
   const latencyEl = document.getElementById("tcp-test-latency");
   if (!host || !port) return;
+  saveFieldValues("lanpi-tcp-test-config", ["tcp-test-host", "tcp-test-port"]);
 
   // Shown here rather than left to the input fields -- this is what's
   // actually being tested right now, and stays correct even if the
@@ -588,6 +623,7 @@ async function startCapture(event) {
   const filterValue = document.getElementById("capture-filter").value.trim();
   const duration = durationValue ? parseInt(durationValue, 10) : null;
   const bpf_filter = filterValue || null;
+  saveFieldValues("lanpi-capture-config", ["capture-duration", "capture-filter"]);
 
   try {
     const res = await fetch("/api/capture/start", {
@@ -714,6 +750,7 @@ async function startPing(event) {
   const host = document.getElementById("ping-host").value.trim();
   const countValue = document.getElementById("ping-count").value.trim();
   if (!host) return;
+  saveFieldValues("lanpi-ping-config", ["ping-host", "ping-count"]);
 
   const count = countValue ? parseInt(countValue, 10) : null;
 
@@ -830,6 +867,12 @@ const _cardResizeObserver = new ResizeObserver(() => {
 });
 document.querySelectorAll(".card").forEach((card) => _cardResizeObserver.observe(card));
 window.addEventListener("resize", layoutCards);
+
+loadFieldValues("lanpi-ping-config", ["ping-host", "ping-count"]);
+loadFieldValues("lanpi-arp-scan-config", ["arp-scan-network"]);
+loadFieldValues("lanpi-mtr-config", ["mtr-host", "mtr-cycles"]);
+loadFieldValues("lanpi-tcp-test-config", ["tcp-test-host", "tcp-test-port"]);
+loadFieldValues("lanpi-capture-config", ["capture-duration", "capture-filter"]);
 layoutCards();
 
 loadAll();

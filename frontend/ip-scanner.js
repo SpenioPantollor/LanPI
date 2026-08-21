@@ -1,3 +1,32 @@
+// Remembers form field values across page loads (localStorage) --
+// same pattern as app.js/modbus.js, so the target range doesn't need
+// retyping every time.
+function saveFieldValues(storageKey, fieldIds) {
+  const values = {};
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el) values[id] = el.value;
+  }
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(values));
+  } catch (err) {
+    // localStorage unavailable -- fields just won't persist
+  }
+}
+
+function loadFieldValues(storageKey, fieldIds) {
+  let saved = {};
+  try {
+    saved = JSON.parse(window.localStorage.getItem(storageKey)) || {};
+  } catch (err) {
+    saved = {};
+  }
+  for (const id of fieldIds) {
+    const el = document.getElementById(id);
+    if (el && saved[id] !== undefined) el.value = saved[id];
+  }
+}
+
 let scanPollTimer = null;
 
 function renderScanStatus(result) {
@@ -54,6 +83,7 @@ async function startScan(event) {
   event.preventDefault();
   const target = document.getElementById("ip-scan-target").value.trim();
   if (!target) return;
+  saveFieldValues("lanpi-ip-scan-config", ["ip-scan-target"]);
 
   try {
     const res = await fetch("/api/tools/ip-scan/start", {
@@ -98,6 +128,7 @@ function updateFooter() {
 document.getElementById("ip-scan-form").addEventListener("submit", startScan);
 document.getElementById("ip-scan-stop-btn").addEventListener("click", stopScan);
 
+loadFieldValues("lanpi-ip-scan-config", ["ip-scan-target"]);
 updateFooter();
 setInterval(updateFooter, 60000);
 
