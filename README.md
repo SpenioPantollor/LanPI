@@ -332,7 +332,8 @@ lanpi/
 │   ├── lanpi.service, lanpi-wifi-fallback.service
 │   ├── install.sh
 │   ├── lanpi-ap-up.sh / lanpi-ap-down.sh
-│   └── hostapd.conf.template, dnsmasq-ap.conf, 99-lanpi-no-forward.conf
+│   ├── hostapd.conf.template, dnsmasq-ap.conf, 99-lanpi-no-forward.conf
+│   └── nftables.conf            # Rule 7: blocks port 8000 on eth0, SSH stays open
 │
 └── docs/
 ```
@@ -483,8 +484,9 @@ starting the riskier industrial-protocol work above:
   actually verified on the Pi)
 * [x] Automated tests (`pytest`, see Running Tests below) -- parser/
   classifier/validation logic covered without needing real hardware
-* [ ] Management interface (port 8000) blocked on `eth0`, SSH (22)
-  left open there as a recovery path
+* [x] Management interface (port 8000) blocked on `eth0` via
+  `nftables` (Rule 7 in `ARCHITECTURE.MD`), SSH (22) deliberately left
+  open there as a recovery path -- confirmed live
 * [ ] Capture storage limits (size/space caps on recorded `.pcap`
   files)
 * [ ] `backend/api/routes.py` split into per-feature route modules

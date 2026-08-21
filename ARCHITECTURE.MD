@@ -712,6 +712,22 @@ The web frontend must not execute arbitrary shell commands.
 
 All privileged operations must go through predefined backend functions.
 
+### Rule 7
+
+LanPi's own management interface (port 8000) must not be reachable
+from `eth0` (the TEST PORT).
+
+Enforced via `nftables` (`system/nftables.conf`, installed to
+`/etc/nftables.conf` by `install.sh`): `iifname "eth0" tcp dport 8000
+drop`, nothing else. A device connected to `eth0` for diagnostics has
+no legitimate reason to reach LanPi's own web UI/API through the port
+under test.
+
+SSH (22) is a deliberate exception -- explicitly kept open on `eth0`
+as a recovery path if `wlan0` becomes unreachable (see `STATUS.md`'s
+wlan0-recovery-via-eth0 procedure). Only port 8000 is blocked; every
+other port on `eth0`, and everything on `wlan0`, is untouched.
+
 ---
 
 # 16. Development Priorities

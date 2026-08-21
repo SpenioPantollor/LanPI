@@ -5,7 +5,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$REPO_DIR/venv"
 
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip tcpdump ethtool hostapd dnsmasq arp-scan mtr-tiny nmap
+sudo apt-get install -y python3-venv python3-pip tcpdump ethtool hostapd dnsmasq arp-scan mtr-tiny nmap nftables
 
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip
@@ -33,6 +33,15 @@ sudo setcap cap_net_raw,cap_net_admin=eip "$(find_bin /usr/sbin/arp-scan /usr/bi
 # and eth0 (TEST PORT), including via the fallback AP's NAT.
 sudo cp "$REPO_DIR/system/99-lanpi-no-forward.conf" /etc/sysctl.d/99-lanpi-no-forward.conf
 sudo sysctl -p /etc/sysctl.d/99-lanpi-no-forward.conf
+
+# Rule 7 (ARCHITECTURE.MD): block LanPi's own management port (8000)
+# from eth0 (the TEST PORT), while deliberately leaving SSH open there
+# as a recovery path. Takes over /etc/nftables.conf entirely (this is
+# a single-purpose device) -- restart is safe/idempotent even if
+# nftables.service was already running with this same ruleset loaded.
+sudo cp "$REPO_DIR/system/nftables.conf" /etc/nftables.conf
+sudo systemctl enable nftables.service
+sudo systemctl restart nftables.service
 
 # Remove a stale NetworkManager-hotspot AP profile from earlier LanPi
 # versions, if present. NM's built-in Wi-Fi hotspot mode fails WPA2
