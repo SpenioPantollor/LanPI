@@ -341,6 +341,26 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
+/* A panel can hold several .card sections (Modbus's Read tab has
+   three: Read, Device Identification, Device Templates) -- without
+   this they had no space between them at all, just bare cards
+   touching edge-to-edge (harmless-looking under the dark theme's
+   subtle borders, but glaring under Win98's bold beveled ones). */
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Same author-vs-user-agent-stylesheet cascade issue already hit by
+   .active-tasks-badge and form -- an author `display` rule on the
+   same element as [hidden] always wins over the UA stylesheet's
+   `[hidden] { display: none }`, so switchModbusTab()'s panel.hidden
+   toggling would silently stop hiding inactive panels without this. */
+.tab-panel[hidden] {
+  display: none;
+}
+
 .tabs button {
   color: var(--text);
   background: var(--surface);
