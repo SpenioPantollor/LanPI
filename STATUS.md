@@ -133,7 +133,48 @@ README already documented "every active tool" as eth0-sourced, but
 `ping.py` wasn't). Both fixes live-verified (see Verified section
 below); MTR did **not** turn out to work for out-of-subnet targets
 even with the routing fix in place -- an `mtr`-internal limitation,
-documented in Known gaps.
+documented in Known gaps. One consequence worth calling out: `ping`
+now can't reach a target that's only reachable via `wlan0` (e.g. a
+device joined to the fallback AP) -- it never could for TCP test/MTR/
+IP scanner/port scanner either, since they were already `eth0`-bound
+before this session; `ping` is now simply consistent with them rather
+than the one exception. This is intentional, not a regression: these
+are TEST PORT tools by design (README), not general-purpose
+any-interface utilities.
+
+**Packet capture "stuck idle" bug fixed, cross-page Active badge added
+(2026-08-22)**: `backend/capture/pcap.py`'s `status()` computed
+`elapsed_seconds` from `started_at`, which was never cleared once a
+capture session ended (natural duration expiry, manual stop, or
+tcpdump exiting on its own) -- `elapsed_seconds` kept climbing forever
+from the stale timestamp even after `running` correctly flipped to
+`false`. User-reported: navigated away from the dashboard mid-capture,
+came back later to find the elapsed time still counting up next to an
+"idle" status, looking stuck. Fixed by clearing `started_at` alongside
+`running`/`process` wherever a session ends; live-verified with a real
+2-second capture (`elapsed_seconds: 1.1` mid-capture → `null` the
+instant it expired → still `null` 3s later, not climbing again on its
+own).
+
+The same report also raised a real, broader gap: Ping/MTR/Capture/
+IP scan/Port scan all keep running on the Pi regardless of which page
+you're looking at (or even after closing the browser entirely -- this
+was already true, a consequence of them being background
+Popen/thread-based processes owned by `lanpi.service`, not by any
+particular HTTP request or page), but there was no way to *tell* from
+another page, or after a fresh page load, that something was still
+active elsewhere. Added `frontend/active-tasks.js`, included on every
+page right after the header: polls all five tools' own status
+endpoints every 3s and shows a small pulsing badge next to the page
+title naming whatever's currently running, hidden when nothing is. ARP
+scan has no entry -- it's a synchronous one-shot request
+(`backend/tools/arp_scan.py`), not a background process, so there's no
+"still running elsewhere" state for it to report. Live-verified each
+status endpoint's shape directly (ping/mtr/ip-scan/port-scan/capture
+all return the `running` boolean the badge depends on); the actual
+rendered badge itself wasn't clicked through in a real browser (same
+gap as every other frontend addition this session -- no
+browser/display available in this environment).
 
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
@@ -971,6 +1012,12 @@ yet -- see "Next steps" below for those.
   against real ARP/DHCP traffic (see Verified section above), and
   every `getElementById` reference in the new JS matches a real
   element id, but neither card was clicked through in a real browser.
+- The new cross-page "Active" badge (`frontend/active-tasks.js`) has
+  the same gap: every status endpoint it polls was independently
+  confirmed live (see the "cross-page Active badge" verification
+  above), and every `getElementById` reference matches a real element
+  id on all six pages, but the actual rendered badge (pulsing dot,
+  show/hide, label text) wasn't clicked through in a real browser.
 
 ## Next steps
 
