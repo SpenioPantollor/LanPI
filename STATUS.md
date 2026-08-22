@@ -222,8 +222,22 @@ the AP restored). 4 new tests (`tests/test_wifi.py`) cover
 `deactivate()`/`activate()` and `get_status()` -- this module had zero
 test coverage before (matches the rest of `wifi.py`: relies on live
 verification, no real `nmcli`/`wlan0` to test against in this
-environment). **Not yet live-tested** -- needs a real fallback-AP
-session to click through.
+environment).
+
+**Fully confirmed live** immediately after deploy, via the API directly
+(over the `eth0` recovery path, unaffected by whatever `wlan0` was
+doing): `Pypas` had actually come back into range since the earlier
+`ssid-not-found` drop, so triggering `retry-known` tore the AP down,
+reconnected `wlan0` to `Pypas` in 3.5s (`{"ok":true,"message":"connected
+to Pypas"}`), and correctly left the AP down afterward -- `GET
+/api/network/wifi` before/after showed `mode: "ap"` -> `mode: "client",
+ssid: "Pypas", ip_address: "192.168.88.149"`. The button itself
+(Settings page) wasn't clicked through in a real browser -- no
+display/browser in this environment -- but the endpoint it calls is
+now proven correct end-to-end against real hardware, both success paths
+(this one) and the "restore AP on failure" path (implicitly exercised
+earlier the same day when `Pypas` was still out of range and the AP
+stayed up as designed).
 
 **S7 traffic-classifier false positive found and fixed (2026-08-22)**,
 user-noticed: the Traffic page showed `s7: 1` against the MikroTik
