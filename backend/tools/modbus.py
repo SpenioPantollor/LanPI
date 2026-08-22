@@ -220,7 +220,7 @@ def read(
 
 def _read_error(
     message: str,
-    request: bytes,
+    request: bytes | None,
     started: float,
     header: bytes | None = None,
     body: bytes | None = None,
@@ -230,7 +230,11 @@ def _read_error(
     timing and whatever raw bytes were actually seen (even a partial or
     malformed response is useful in the raw request/response view),
     unlike the pure-input-validation returns earlier in each function,
-    which never touched the network and so have nothing to show."""
+    which never touched the network and so have nothing to show.
+    `request` is None for read_device_identification() specifically when
+    connect()/bind() itself fails before its first iteration ever builds
+    a request (unlike read(), which always builds its one-shot request
+    before opening the socket)."""
     raw_response = None
     if header is not None:
         raw_response = (header + (body or b"")).hex()
@@ -238,7 +242,7 @@ def _read_error(
         "ok": False,
         "message": message,
         "response_time_ms": round((time.monotonic() - started) * 1000, 1),
-        "raw_request": request.hex(),
+        "raw_request": request.hex() if request is not None else None,
         "raw_response": raw_response,
     }
 
@@ -285,6 +289,9 @@ def read_device_identification(host: str, unit_id: int, port: int = 502, timeout
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(timeout)
     started = time.monotonic()
+    request = None  # only ever built inside the loop below -- stays None if
+    # bind()/connect() itself fails first, so the except handlers below
+    # have something valid to pass to _read_error() either way
     try:
         _bind_to_eth0_device(sock)
         sock.bind((source_ip, 0))

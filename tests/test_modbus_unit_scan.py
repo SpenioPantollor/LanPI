@@ -14,6 +14,7 @@ from backend.tools import modbus, modbus_unit_scan
 @pytest.fixture(autouse=True)
 def _bind_from_localhost_and_reset(monkeypatch):
     monkeypatch.setattr(modbus, "_eth0_source_ip", lambda: "127.0.0.1")
+    monkeypatch.setattr(modbus, "_bind_to_eth0_device", lambda sock: None)
     with modbus_unit_scan._lock:
         modbus_unit_scan._state.update(
             {"running": False, "results": [], "progress": 0, "total": 0}

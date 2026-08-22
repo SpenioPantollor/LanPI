@@ -21,6 +21,13 @@ def _bind_from_localhost(monkeypatch):
     # docstring) -- point that at localhost so tests don't need a real
     # eth0 interface/IP configured.
     monkeypatch.setattr(modbus, "_eth0_source_ip", lambda: "127.0.0.1")
+    # _bind_to_eth0_device (SO_BINDTODEVICE) is a real-interface concern
+    # verified live on the Pi, not something a portable test can/should
+    # exercise -- on a runner that actually has a device named "eth0"
+    # and enough privilege, binding to it and then binding the address
+    # to 127.0.0.1 fails with EINVAL (mismatched device/address), which
+    # isn't what these tests are checking. No-op it here.
+    monkeypatch.setattr(modbus, "_bind_to_eth0_device", lambda sock: None)
 
 
 def _recv_exact(sock: socket.socket, count: int) -> bytes:
