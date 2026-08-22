@@ -197,6 +197,32 @@ this session -- no browser/display available in this environment), so
 the CSS fix itself rests on understanding the cascade bug, not a
 visual re-test.
 
+**S7 traffic-classifier false positive found and fixed (2026-08-22)**,
+user-noticed: the Traffic page showed `s7: 1` against the MikroTik
+router's IP, which read as suspicious ("S7 traffic leaking out of a
+router" -- not a device that should originate real S7comm). Traced to
+the Port Scanner: the last scan on record (`GET /api/tools/port-scan/
+status`) targeted the router at `192.168.88.1`, range `1-1024`, which
+includes port 102 -- `traffic_stats.py`'s S7 heuristic
+(`backend/capture/traffic_stats.py`) flagged *any* TCP segment with
+source or destination port 102, so the scan's bare SYN probe (and/or
+the router's RST reply) got misclassified as S7comm with zero actual
+S7 protocol activity involved. This does **not** confirm real S7
+traffic -- it demonstrates the opposite: the port-only heuristic is
+vulnerable to exactly this kind of false positive from routine port
+scanning. **Fixed**: now also requires the TCP segment to carry an
+actual payload (computed from the TCP header's data-offset field, not
+just present) before flagging `"s7"` -- a genuine S7 session always
+carries COTP/S7 PDU data, while a scan's SYN/RST/ACK control packets
+never do. Two new tests added (`test_classify_s7_by_port_with_payload`/
+`test_classify_s7_ignores_bare_control_packet_on_port_102`) --
+previously this classifier had **zero** test coverage despite Known
+Gaps claiming PROFINET/S7 detection was "covered by their own tests"
+(true for the Kamstrup/Modbus side, not for this traffic-stats port
+heuristic; corrected here). PROFINET (EtherType 0x8892, a distinct
+frame type nothing else produces) is unaffected -- this false-positive
+risk was specific to the TCP-port-based S7 signal.
+
 **Modbus Read's auto-refresh now shows in the cross-page Active badge
 (2026-08-22)**, user-requested. Unlike Modbus Poll (a real backend
 background job with its own start/status/stop), Read's "auto-refresh

@@ -137,8 +137,17 @@ def _classify(packet: bytes) -> tuple[str, str | None, bool, bool, frozenset]:
                     protocols.add("ssdp")
             elif proto == 6 and n >= l4_offset + 4:  # TCP
                 sport, dport = struct.unpack("!HH", packet[l4_offset:l4_offset + 4])
-                if sport == _S7_PORT or dport == _S7_PORT:
-                    protocols.add("s7")
+                if (sport == _S7_PORT or dport == _S7_PORT) and n >= l4_offset + 20:
+                    # A bare TCP control segment (SYN/RST/ACK, no
+                    # payload) touching port 102 isn't S7comm traffic --
+                    # a real S7 session always carries COTP/S7 PDU data.
+                    # Confirmed as a real false-positive source
+                    # 2026-08-22: a port scan's probe/RST against a
+                    # MikroTik router's 1-1024 range showed up flagged
+                    # as "s7" with zero actual S7 traffic involved.
+                    data_offset = ((packet[l4_offset + 12] >> 4) & 0x0F) * 4
+                    if n > l4_offset + data_offset:
+                        protocols.add("s7")
     elif ethertype == 0x86DD:  # IPv6
         protocols.add("ipv6")
     elif ethertype == 0x88CC:  # LLDP

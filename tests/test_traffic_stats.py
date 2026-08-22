@@ -46,6 +46,20 @@ def _ipv4_udp_packet(src_mac: str, src_ip: str, sport: int, dport: int, dst=_BRO
     return _eth(dst, _mac(src_mac), 0x0800, bytes(ip_header) + udp_header)
 
 
+def _ipv4_tcp_packet(
+    src_mac: str, src_ip: str, sport: int, dport: int, payload: bytes = b"", dst=_BROADCAST
+) -> bytes:
+    ip_header = bytearray(20)
+    ip_header[0] = 0x45  # version 4, IHL 5 (20 bytes)
+    ip_header[9] = 6  # TCP
+    ip_header[12:16] = bytes(int(o) for o in src_ip.split("."))
+    ip_header[16:20] = bytes([0, 0, 0, 0])
+    tcp_header = bytearray(20)
+    struct.pack_into("!HH", tcp_header, 0, sport, dport)
+    tcp_header[12] = 5 << 4  # data offset = 5 words (20 bytes), no options
+    return _eth(dst, _mac(src_mac), 0x0800, bytes(ip_header) + bytes(tcp_header) + payload)
+
+
 def _lldp_packet(src_mac: str, dst=_mac("01:80:c2:00:00:0e")) -> bytes:
     return _eth(dst, _mac(src_mac), 0x88CC, b"\x00" * 4)
 
@@ -86,6 +100,23 @@ def test_classify_mdns_by_port():
     packet = _ipv4_udp_packet("aa:bb:cc:dd:ee:03", "10.0.0.7", sport=5353, dport=5353)
     _, _, _, _, protocols = traffic_stats._classify(packet)
     assert "mdns" in protocols
+
+
+def test_classify_s7_by_port_with_payload():
+    packet = _ipv4_tcp_packet(
+        "aa:bb:cc:dd:ee:0a", "10.0.0.20", sport=51000, dport=102, payload=b"\x03\x00\x00\x16"
+    )
+    _, _, _, _, protocols = traffic_stats._classify(packet)
+    assert "s7" in protocols
+
+
+def test_classify_s7_ignores_bare_control_packet_on_port_102():
+    # Real gap found 2026-08-22: a port scan's SYN/RST probe against
+    # port 102 (no payload) isn't S7comm traffic, just port 102 being
+    # touched -- must not be flagged the same as an actual S7 session.
+    packet = _ipv4_tcp_packet("aa:bb:cc:dd:ee:0b", "10.0.0.21", sport=51000, dport=102, payload=b"")
+    _, _, _, _, protocols = traffic_stats._classify(packet)
+    assert "s7" not in protocols
 
 
 def test_classify_lldp_multicast():
