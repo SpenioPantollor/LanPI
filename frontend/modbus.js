@@ -238,6 +238,7 @@ function stopModbusPoll() {
     modbusPollTimer = null;
   }
   document.getElementById("modbus-stop-btn").disabled = true;
+  window.lanpiLocalActiveTasks.delete("Modbus Read");
 }
 
 async function submitModbusRead(event) {
@@ -259,6 +260,10 @@ async function submitModbusRead(event) {
     const intervalMs = Math.max(1, parseInt(values.interval, 10)) * 1000;
     modbusPollTimer = setInterval(performModbusRead, intervalMs);
     document.getElementById("modbus-stop-btn").disabled = false;
+    // Unlike Modbus Poll (a real backend background job), this is a
+    // plain client-side timer -- it stops the instant this page is
+    // left, so it only ever shows in the badge here, never cross-page.
+    window.lanpiLocalActiveTasks.add("Modbus Read");
   }
 }
 

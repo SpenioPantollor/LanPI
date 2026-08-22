@@ -197,6 +197,21 @@ this session -- no browser/display available in this environment), so
 the CSS fix itself rests on understanding the cascade bug, not a
 visual re-test.
 
+**Modbus Read's auto-refresh now shows in the cross-page Active badge
+(2026-08-22)**, user-requested. Unlike Modbus Poll (a real backend
+background job with its own start/status/stop), Read's "auto-refresh
+interval" field is a plain client-side `setInterval` -- there's no
+Popen/thread on the Pi to poll a status endpoint for, and it genuinely
+stops the instant the page is left. Added `window.lanpiLocalActiveTasks`
+(a `Set`) to `active-tasks.js`: any page can add/remove its own name
+directly for this kind of page-local-only activity, merged into the
+same badge alongside the real polled sources. `modbus.js` adds "Modbus
+Read" when the interval timer starts, removes it in `stopModbusPoll()`
+(the one place the timer ever stops, called both by the Stop button
+and at the start of every new read). Correctly does *not* persist
+cross-page, unlike Ping/MTR/etc -- that's accurate, not a limitation,
+since the underlying timer doesn't either.
+
 **Real eth0-vs-wlan0 physical-egress bug found and fixed (2026-08-22)**,
 user-reported starting from "Modbus TCP traffic doesn't show any
 packets after a real read". Investigation on the Pi (parallel `tcpdump

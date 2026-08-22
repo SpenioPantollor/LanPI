@@ -11,6 +11,17 @@
 // (backend/tools/arp_scan.py has no start/status/stop, no background
 // process), so there's no "still running elsewhere" state for it to
 // report.
+//
+// window.lanpiLocalActiveTasks: for things that are NOT a backend
+// background job and so have no status endpoint to poll -- Modbus
+// Read's auto-refresh interval is a plain client-side setInterval, not
+// a Popen/thread on the Pi (unlike Modbus Poll, its background-job
+// cousin), so it genuinely stops the moment you navigate away. A page
+// that has such a thing running adds its own name here directly (see
+// modbus.js); it naturally disappears on any other page since that
+// page's own JS never added it.
+window.lanpiLocalActiveTasks = new Set();
+
 const _ACTIVE_TASK_SOURCES = [
   { name: "Ping", url: "/api/tools/ping/status" },
   { name: "MTR", url: "/api/tools/mtr/status" },
@@ -40,6 +51,9 @@ async function _refreshActiveTasks() {
   );
 
   const active = results.filter(Boolean);
+  for (const name of window.lanpiLocalActiveTasks) {
+    active.push(name);
+  }
   if (active.length === 0) {
     badge.hidden = true;
   } else {
