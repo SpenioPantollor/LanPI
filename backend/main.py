@@ -1,9 +1,7 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.api.routes import TEST_PORT_INTERFACE, router as api_router
@@ -50,22 +48,3 @@ def _start_background_listeners() -> None:
     link_history.start_listener(TEST_PORT_INTERFACE)
     ip_conflict.start_listener(TEST_PORT_INTERFACE)
     dhcp_monitor.start_listener(TEST_PORT_INTERFACE)
-
-
-@app.exception_handler(StarletteHTTPException)
-async def captive_portal_fallback(request: Request, exc: StarletteHTTPException):
-    # OS captive-portal probes (iOS hotspot-detect.html, Android
-    # generate_204, Windows connecttest.txt, ...) hit arbitrary paths
-    # that don't exist here. Send anything unmatched to the dashboard
-    # instead of a bare 404, so joining the fallback AP opens LanPi
-    # automatically instead of requiring the user to type an address.
-    # Excludes /api/* so a real API 404 (e.g. a missing capture file)
-    # comes back as an actual 404, not a redirect masking it.
-    if exc.status_code == 404 and not request.url.path.startswith("/api/"):
-        return RedirectResponse(url="/")
-    # Registering a handler for StarletteHTTPException replaces FastAPI's
-    # own default one entirely -- re-raising here doesn't fall through to
-    # it, it just becomes an unhandled 500 (found via capture_download's
-    # 404). Build the same {"detail": ...} response the default handler
-    # would, for every other status code this exception carries.
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)

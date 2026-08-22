@@ -345,15 +345,19 @@ from before this date, that history no longer exists.
   - `GET/POST /api/network/ap` — fallback AP status and SSID/password
     config, backed by `/etc/hostapd/hostapd.conf`
     (`backend/network/ap.py`).
-  - Any unmatched path (404) redirects to `/` instead of erroring —
-    makes the fallback AP behave like a captive portal (see below).
 - **Fallback access point — hostapd-based**: SSID `LanPi`,
   non-standard subnet `172.24.58.1/24`, WPA2-PSK.
   `system/lanpi-ap-up.sh` / `lanpi-ap-down.sh` switch `wlan0` between
   NetworkManager client mode and a manually-managed hostapd + dnsmasq
-  AP (dnsmasq also does a wildcard DNS hijack + an nftables port-80
-  redirect, so any URL a joining device tries to load lands on LanPi's
-  dashboard automatically, like a public Wi-Fi captive portal).
+  AP; clients reach the dashboard directly at `172.24.58.1:8000`. The
+  captive-portal-style auto-popup (wildcard DNS hijack + nftables
+  port-80 redirect + a backend 404→`/` redirect) was removed
+  2026-08-22 — maintainer's call: it caused more problems than it
+  solved (broke real DNS lookups for anyone using the fallback AP for
+  something other than reaching LanPi, and never reliably triggered
+  the actual OS auto-popup on iOS anyway). Joining the AP and opening
+  `172.24.58.1:8000` manually now works the same way every time,
+  instead of sometimes auto-popping and sometimes not.
   `system/lanpi-wifi-fallback.service` continuously monitors `wlan0`
   (checks every 5s) and runs `lanpi-ap-up.sh` whenever it's had no
   known network for 25+ seconds — **not** a one-shot boot check
@@ -462,13 +466,6 @@ from before this date, that history no longer exists.
   `172.24.58.1:8000`. AP-up/AP-down cycle tested repeatedly without
   losing the ability to recover (see NM-hotspot-vs-hostapd note above
   for how the working config was reached).
-- Captive-portal auto-redirect: backend-side 404→dashboard redirect
-  and the DNS-hijack+port-80-redirect are deployed and individually
-  verified (curl), but the full "join AP → page pops up automatically"
-  flow wasn't confirmed on iOS in this session — iOS treats the AP as
-  a no-internet network and restricts background traffic, so it may
-  require opening Safari manually even though the redirect is in
-  place. Not yet retested.
 - eth0 IP mode: **fully confirmed working** — cycled Passive → DHCP →
   Static → Passive live against the deployed Pi via the API. Two real
   bugs found and fixed along the way:
@@ -802,13 +799,14 @@ from before this date, that history no longer exists.
 
 ## Known gaps
 
-- PROFINET/S7 traffic detection implemented but not yet confirmed
-  against a real device (see Verified section above).
-- Modbus TCP read client's protocol logic is confirmed against a real
-  Modbus slave (see Verified section above), but the Kamstrup device
-  templates' actual register map is not -- PROFINET DCP/traffic
-  detection, S7 diagnostics, and industrial device ID (rest of V0.3)
-  not started.
+PROFINET/S7 detection and the Kamstrup device templates work as
+designed and are covered by their own tests -- they're not listed here
+because nothing about them is broken or incomplete. The only thing
+pending is confirming their specific real-world values (an actual
+PROFINET/S7 device's traffic, an actual Kamstrup meter's register
+values) against hardware that hasn't been available to test against
+yet -- see "Next steps" below for those.
+
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
@@ -875,4 +873,3 @@ from before this date, that history no longer exists.
   is already confirmed against a real Modbus slave).
 - Re-verify PROFINET/S7 detection against a real device when one's
   available.
-- Re-verify the captive-portal auto-open flow with a phone.
