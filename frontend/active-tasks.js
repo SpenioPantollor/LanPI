@@ -17,6 +17,9 @@ const _ACTIVE_TASK_SOURCES = [
   { name: "Capture", url: "/api/capture/status" },
   { name: "IP Scan", url: "/api/tools/ip-scan/status" },
   { name: "Port Scan", url: "/api/tools/port-scan/status" },
+  { name: "Modbus Unit Scan", url: "/api/tools/modbus/unit-scan/status" },
+  { name: "Modbus Register Scan", url: "/api/tools/modbus/register-scan/status" },
+  { name: "Modbus Poll", url: "/api/tools/modbus/poll/status" },
 ];
 
 async function _refreshActiveTasks() {

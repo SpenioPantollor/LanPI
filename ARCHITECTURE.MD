@@ -679,33 +679,42 @@ wlan0 ↔ eth0
 unless such functionality is explicitly implemented in the future.
 
 This also covers routing, not just L2 bridging: `eth0` (the TEST PORT)
-must never contribute a default route, even when DHCP or a static
-config gives it a gateway. A lower-metric eth0 default route can
-silently steal the Pi's own outbound traffic away from `wlan0` --
+must never *outrank* `wlan0`'s default route, even when DHCP or a
+static config gives it a gateway -- a lower-metric eth0 default route
+can silently steal the Pi's own outbound traffic away from `wlan0`,
 confirmed live during development (see `STATUS.md`), where this cut
-off the Pi's own internet/git access until fixed. Enforced via
-`ipv4.never-default=yes` on the `lanpi-eth0` NetworkManager profile.
+off the Pi's own internet/git access until fixed.
 
-This doesn't mean traffic that's actually testing the network under
-test can never reach past `eth0`'s own subnet -- ping/MTR/TCP-test
-exist specifically to test it. `backend/network/eth0_mode.py` sets up
-a second routing table (100), populated with a default route via
-`eth0`'s own gateway, selected only by a policy rule matching packets
-whose *source address* is `eth0`'s own address specifically
-(`ip rule ... from <eth0-address> lookup 100`). Nothing else on the Pi
-sources traffic from that address, so this can't reintroduce the
-Rule 3 incident above -- SSH/git/apt/NTP/etc. still have zero route to
-anywhere outside their own directly-connected subnet whenever `wlan0`
-itself has no route (e.g. while the fallback AP is active), exactly as
-Rule 3 requires; only the three tools that already deliberately bind
-their own traffic to `eth0`'s address (`ping.py`'s `-I`, `mtr.py`'s
-`-a`, `tcp_test.py`'s `socket.bind()`) pick up the second table's
-route. User-reported 2026-08-22 (`ping` to `8.8.8.8` failed with
-"Network is unreachable" even with `eth0` connected to a network with
-a real gateway) -- confirmed live: `ping`/TCP-test now correctly reach
-out-of-subnet targets through `eth0`'s gateway; `mtr` still doesn't
-(see `STATUS.md` -- an `mtr`-internal limitation with its own `-a`
-handling, not something this routing setup controls).
+Two approaches were tried here, in order:
+
+1. `ipv4.never-default=yes` on the `lanpi-eth0` NetworkManager profile
+   -- eth0 contributes no default route at all, ever. Airtight against
+   the incident above, but it also meant `eth0`-sourced traffic (from
+   the tools that deliberately bind to `eth0`'s own address --
+   `ping.py`, `mtr.py`, `tcp_test.py`) had no route to anything past
+   `eth0`'s own directly-connected subnet either -- user-reported
+   2026-08-22 (`ping` to `8.8.8.8` failed outright even with `eth0`
+   connected to a network with a real gateway). A second routing table
+   plus a policy rule matching `eth0`'s own source address was added
+   to work around it -- confirmed working for `ping`/TCP-test, but
+   `mtr`'s own `-a` handling didn't cooperate with a route reachable
+   only via policy routing (see `STATUS.md`), and real industrial gear
+   (Siemens S7 PLCs among others) living behind its own gateway on the
+   test network -- not just on `eth0`'s own subnet -- would have hit
+   the exact same wall as any other `eth0`-sourced tool.
+2. **Current approach (2026-08-22, superseding #1)**: let `eth0`
+   contribute a real default route like any other interface, but pin
+   its `ipv4.route-metric` well above `wlan0`'s (NetworkManager's own
+   defaults are ethernet=100, wifi=600 -- backwards from what's needed
+   here -- see `backend/network/eth0_mode.py`'s `_ETH0_ROUTE_METRIC`).
+   `wlan0` stays preferred whenever it has any route at all; `eth0`
+   only becomes "the" default when `wlan0` has none (e.g. mid-fallback-
+   AP). Less airtight than never-default -- the ordering only holds as
+   long as nothing ever pushes `wlan0`'s own metric above this fixed
+   value, which nothing in this codebase does -- but it's one plain
+   parameter instead of a second routing table, and it fixes `mtr` too
+   (a normal route in the main table, not one reachable only through
+   policy routing, is what its own `-a` handling needed all along).
 
 ### Rule 4
 

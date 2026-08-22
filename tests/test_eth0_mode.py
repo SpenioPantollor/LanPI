@@ -48,7 +48,7 @@ def test_get_mode_dhcp_parses_options_and_falls_back_to_dhcp_gateway(monkeypatch
         "available": True,
         "mode": "dhcp",
         "address": "192.168.1.50/24",
-        "gateway": "192.168.1.1",  # from DHCP4.OPTION[routers], since IP4.GATEWAY is empty (never-default)
+        "gateway": "192.168.1.1",  # from DHCP4.OPTION[routers], since IP4.GATEWAY is empty in this fake output
         "dns": ["8.8.8.8"],
         "lease_time_seconds": 43200,
         "dhcp_server": "192.168.1.1",

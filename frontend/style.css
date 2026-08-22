@@ -118,6 +118,17 @@ h1 {
   font-weight: 600;
 }
 
+/* An author-stylesheet `display` on the same element as the `hidden`
+   attribute otherwise always wins over the UA stylesheet's
+   `[hidden] { display: none }` (author-normal beats user-agent-normal
+   regardless of selector specificity) -- toggling `.hidden` via JS had
+   no visual effect at all without this, so the badge never actually
+   disappeared once shown once (user-reported 2026-08-22: pulsed
+   forever even after the task it named had finished). */
+.active-tasks-badge[hidden] {
+  display: none;
+}
+
 .active-tasks-dot {
   width: 0.5rem;
   height: 0.5rem;

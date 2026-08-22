@@ -19,61 +19,20 @@ from backend import shell
 CONNECTION_NAME = "lanpi-eth0"
 _INTERFACE = "eth0"
 _NMCLI_CANDIDATES = ["/usr/bin/nmcli", "/bin/nmcli", "nmcli"]
-_IP_CANDIDATES = ["/usr/sbin/ip", "/sbin/ip", "/usr/bin/ip", "/bin/ip", "ip"]
 
-# Separate routing table (and matching policy rule) for traffic
-# explicitly sourced from eth0's own address -- see _apply_test_route.
-_TEST_ROUTE_TABLE = "100"
-_TEST_RULE_PRIORITY = "100"
+# NetworkManager's own defaults are ethernet=100, wifi=600 -- eth0
+# would outrank wlan0's default route by default, exactly backwards
+# from what Rule 3 needs. A comfortably-higher fixed value (lower
+# priority) keeps eth0's default route usable (needed for real
+# industrial gear like Siemens S7 PLCs that live behind their own
+# gateway, not just devices on eth0's own subnet) while still leaving
+# wlan0 preferred whenever it actually has a route -- eth0 only ends
+# up "the" default when wlan0 has none at all (e.g. mid-fallback-AP).
+_ETH0_ROUTE_METRIC = "700"
 
 
 def _find_nmcli() -> str | None:
     return shell.find_binary(_NMCLI_CANDIDATES)
-
-
-def _find_ip() -> str | None:
-    return shell.find_binary(_IP_CANDIDATES)
-
-
-def _apply_test_route(address: str, gateway: str) -> None:
-    """Lets ping.py/mtr.py/tcp_test.py -- all three already bind their
-    traffic to eth0's own address -- reach targets beyond eth0's own
-    subnet through the test network's own gateway, without touching
-    the Pi's *system* default route (still exclusively wlan0's, per
-    Rule 3/ipv4.never-default above): a second routing table, selected
-    only by a policy rule matching "from <eth0's address>". Nothing
-    else on the Pi sources traffic from that address, so nothing else
-    can be affected -- SSH/git/apt/NTP/etc. keep using the main table
-    (wlan0) exactly as before.
-
-    Without a gateway (static mode with none set, or a DHCP segment
-    that doesn't offer one) there's nothing to route through beyond
-    eth0's own subnet, same as before this existed -- just clears any
-    previous table/rule instead.
-    """
-    ip_bin = _find_ip()
-    if not ip_bin:
-        return
-    if not gateway:
-        _clear_test_route()
-        return
-    shell.run_privileged([ip_bin, "route", "replace", "default", "via", gateway,
-                           "dev", _INTERFACE, "table", _TEST_ROUTE_TABLE])
-    # Delete-then-add rather than a plain add: re-running this (mode
-    # switched again, or DHCP handed back a different address) with the
-    # same priority but a different "from" address would otherwise
-    # leave two rules stacked instead of replacing the stale one.
-    shell.run_privileged([ip_bin, "rule", "del", "priority", _TEST_RULE_PRIORITY])
-    shell.run_privileged([ip_bin, "rule", "add", "from", address,
-                           "table", _TEST_ROUTE_TABLE, "priority", _TEST_RULE_PRIORITY])
-
-
-def _clear_test_route() -> None:
-    ip_bin = _find_ip()
-    if not ip_bin:
-        return
-    shell.run_privileged([ip_bin, "route", "flush", "table", _TEST_ROUTE_TABLE])
-    shell.run_privileged([ip_bin, "rule", "del", "priority", _TEST_RULE_PRIORITY])
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess | None:
@@ -98,26 +57,35 @@ def _ensure_profile() -> bool:
     """Create the lanpi-eth0 connection profile if it doesn't exist yet.
     Never auto-activated (autoconnect=no) -- passive is the default.
 
-    ipv4.never-default is critical: eth0 is the TEST PORT and must
-    never contribute a default route, even when it has DHCP/static
-    gateway info -- otherwise a test network's gateway can outrank
-    wlan0's and silently steal all of the Pi's own outbound traffic
-    (including its own management/update path). Confirmed live: a
-    leftover eth0 static route with a lower metric than wlan0's did
-    exactly this and cut off internet/git access until manually fixed.
+    eth0 is allowed a real default route via its own gateway when
+    connected (maintainer's call, 2026-08-22, superseding the
+    ipv4.never-default=yes / secondary-routing-table approach tried
+    first): plenty of real industrial gear (Siemens S7 PLCs among
+    others) lives behind its own gateway on the test network, not just
+    on eth0's own directly-connected subnet, and a from-address policy
+    route only ever helped the handful of tools that explicitly bind
+    to eth0's address (ping/mtr/tcp_test) -- mtr's own `-a` handling
+    turned out not to work with it anyway (see STATUS.md). A plain
+    route-metric override is simpler and covers everything uniformly.
+    ipv4.route-metric keeps wlan0 preferred by default (see
+    _ETH0_ROUTE_METRIC above) rather than eth0 unconditionally winning
+    -- less strict than never-default, but the metric ordering only
+    breaks down if wlan0's own metric is ever pushed above this value,
+    which nothing in this codebase does.
     """
     result = _run(["-t", "-f", "NAME", "connection", "show"])
     if result is None:
         return False
     names = result.stdout.strip().splitlines()
     if CONNECTION_NAME in names:
-        _run_privileged(["connection", "modify", CONNECTION_NAME, "ipv4.never-default", "yes"])
+        _run_privileged(["connection", "modify", CONNECTION_NAME,
+                          "ipv4.never-default", "no", "ipv4.route-metric", _ETH0_ROUTE_METRIC])
         return True
 
     create = _run_privileged(
         ["connection", "add", "type", "ethernet", "ifname", _INTERFACE,
          "con-name", CONNECTION_NAME, "autoconnect", "no",
-         "ipv4.method", "auto", "ipv4.never-default", "yes"]
+         "ipv4.method", "auto", "ipv4.route-metric", _ETH0_ROUTE_METRIC]
     )
     return create is not None and create.returncode == 0
 
@@ -167,11 +135,10 @@ def get_mode() -> dict:
 
     mode = "static" if method == "manual" else "dhcp"
 
-    # ipv4.never-default (Rule 3 -- eth0 must never be the default
-    # route) means NetworkManager doesn't install a gateway route, so
-    # IP4.GATEWAY comes back empty even though DHCP/static config
-    # still has one. Fall back to showing it for information, without
-    # ever actually installing it as a route.
+    # IP4.GATEWAY is normally populated directly now that eth0 gets a
+    # real (if deprioritized) default route -- this fallback only
+    # matters for the brief window right after a mode switch, before
+    # NetworkManager finishes applying it.
     if not gateway:
         if mode == "dhcp":
             gateway = dhcp_options.get("routers")
@@ -210,7 +177,6 @@ def set_passive() -> dict:
     # that's already the desired state, not a failure.
     if result.returncode != 0 and "not active" not in (result.stderr or ""):
         return {"ok": False, "message": result.stderr.strip()}
-    _clear_test_route()
     return {"ok": True, "message": "eth0 set to passive mode"}
 
 
@@ -232,10 +198,6 @@ def set_dhcp() -> dict:
     if result is None or result.returncode != 0:
         message = result.stderr.strip() if result else "nmcli/sudo not available"
         return {"ok": False, "message": message}
-    mode = get_mode()
-    address = mode.get("address")
-    if address:
-        _apply_test_route(address.split("/")[0], mode.get("gateway"))
     return {"ok": True, "message": "eth0 set to DHCP mode"}
 
 
@@ -259,5 +221,4 @@ def set_static(address: str, gateway: str = "", dns: str = "") -> dict:
     if result is None or result.returncode != 0:
         message = result.stderr.strip() if result else "nmcli/sudo not available"
         return {"ok": False, "message": message}
-    _apply_test_route(address.split("/")[0], gateway)
     return {"ok": True, "message": "eth0 set to static mode"}
