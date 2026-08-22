@@ -310,6 +310,20 @@ button:disabled {
   justify-content: flex-start !important;
 }
 
+/* Caps the saved-captures list to ~3 rows so a long-running capture
+   session that rotates into many parts doesn't keep growing the whole
+   Dashboard card taller and taller -- scrolls internally instead
+   (user-reported 2026-08-22). */
+.capture-list-scroll {
+  max-height: 7.5rem;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+}
+
+.capture-list-scroll .wifi-list {
+  margin-top: 0;
+}
+
 .card-hint {
   margin: 0.75rem 0 0;
   color: var(--text-dim);
