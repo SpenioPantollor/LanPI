@@ -155,6 +155,29 @@ default route (`ipv4.never-default`) regardless of mode, so the test
 port can never hijack the Pi's own outbound traffic away from `wlan0`
 (see `ARCHITECTURE.MD` Rule 3).
 
+### Network Health Detection
+
+Two passive listeners on the shared capture dispatcher, both scoped to
+the TEST PORT and both reporting raw observations rather than a
+verdict, since there's no device registry yet to hold a "known good"
+baseline to compare against:
+
+* **Duplicate IP detection** -- tracks every MAC address claiming each
+  IP via observed ARP traffic (requests and replies both count as a
+  claim); an IP claimed by more than one MAC at once is flagged as a
+  conflict. A claim expires after 10 minutes of silence, so a
+  genuinely resolved reassignment (a device going offline, a lease
+  changing hands) clears itself instead of leaving a phantom conflict
+  behind forever.
+* **Rogue/unexpected DHCP server detection** -- tracks every distinct
+  DHCP server seen answering OFFER/ACK on the segment (keyed by the
+  DHCP server-identifier option). `multiple_servers_detected` flips
+  true the moment a second one appears -- more than one DHCP server
+  answering on the same segment is the actual symptom (clients getting
+  leases from whichever server answers first), regardless of which one
+  is "correct"; LanPi reports what it sees and leaves the judgment
+  call to the operator.
+
 ### Network Discovery
 
 * **LLDP / CDP / MNDP** -- hand-rolled parsers (no `scapy` or any
@@ -520,8 +543,6 @@ hardware is available to test against):
   observations are both natural inputs to this once it exists, but
   aren't wired into anything today since the registry itself doesn't
   exist yet.
-* Duplicate IP detection on the TEST PORT
-* Rogue/unexpected DHCP server detection on the TEST PORT
 
 ## Safety
 

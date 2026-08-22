@@ -70,6 +70,36 @@ spurious entries from steady-state traffic in between. Chosen first
 off the V0.3 backlog (maintainer's call, 2026-08-22) over duplicate-IP
 detection, rogue-DHCP detection, and the unified device registry.
 
+**Duplicate-IP and rogue-DHCP detection (V0.3 backlog items) complete
+as of 2026-08-22**: two more passive listeners on the shared capture
+dispatcher. `backend/capture/ip_conflict.py` tracks, per IP, every MAC
+address claiming it via ARP (both requests and replies count as a
+claim); an IP claimed by 2+ MACs at once is reported as a conflict,
+and a claim expires after 10 minutes of silence so a resolved
+reassignment clears itself. `backend/capture/dhcp_monitor.py` tracks
+every distinct DHCP server seen answering OFFER/ACK on the segment
+(keyed by the DHCP server-identifier option) and flags
+`multiple_servers_detected` the moment a second one appears -- there's
+no known-good-server list to compare against (no device registry
+exists to hold one), so it reports what it sees and leaves the
+judgment call to the operator. Both live-verified on the Pi (see
+Verified section below), including a genuinely interesting real
+finding: cycling eth0 through Passive→DHCP correctly captured the real
+DHCPACK from the real gateway (192.168.88.1) with the exact leased
+address, and the IP-conflict tracker correctly flagged a real ARP
+conflict -- between the Pi's own eth0 and wlan0 MACs both claiming
+192.168.88.149, an artifact of this development rig's eth0 TEST PORT
+being plugged into the same LAN segment as wlan0 rather than a
+genuinely isolated test network. Not a bug: two real MACs really were
+claiming the same real IP on the wire the capture sees, which is
+exactly what the detector is supposed to catch -- it says nothing
+about whether the two claimants are hostile, just that operators
+should look. Deliberately not filtered out (unlike traffic_stats.py's
+self-MAC exclusion for its unrelated "who's talking" view) since a
+real deployment where LanPi's own TEST PORT gets handed an
+already-in-use address is exactly the kind of conflict this feature
+exists to catch.
+
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
 existing V0.1/V0.2 code more robust before building further
@@ -209,6 +239,17 @@ from before this date, that history no longer exists.
     presence/operstate/link_detected/speed/duplex actually change, not
     on every poll (RX/TX counters are excluded on purpose, or every
     poll would add a spurious entry). Bounded to the last 500 events.
+  - `GET /api/network/ip-conflicts`, `POST .../reset` — duplicate-IP
+    detection (V0.3 backlog item, done 2026-08-22):
+    `backend/capture/ip_conflict.py` tracks every MAC address claiming
+    each IP via passively-observed ARP traffic; an IP claimed by 2+
+    MACs at once is a conflict. Claims expire after 10 minutes.
+  - `GET /api/network/dhcp-servers`, `POST .../reset` — rogue-DHCP
+    detection (V0.3 backlog item, done 2026-08-22):
+    `backend/capture/dhcp_monitor.py` tracks every distinct DHCP server
+    seen answering OFFER/ACK on the segment; `multiple_servers_detected`
+    flips true the moment a second one appears. No known-good-server
+    list -- reports what it sees, operator judges which belongs.
   - `GET/POST /api/network/eth0/mode` — Passive/DHCP/Static IP mode for
     the TEST PORT (`backend/network/eth0_mode.py`), via a dedicated
     `lanpi-eth0` nmcli profile. Passive is the true default: `install.sh`
@@ -735,6 +776,29 @@ from before this date, that history no longer exists.
   correct restored `speed_mbps: 100`/`duplex: full` on replug -- both
   observed live via repeated polling of `/api/network/eth0/history`
   during the pull/replug, not just asserted from the unit tests.
+- Duplicate-IP and rogue-DHCP detection (2026-08-22):
+  - DHCP: cycling eth0 Passive→DHCP via the API forced a real DHCP
+    transaction against the real gateway. `/api/network/dhcp-servers`
+    correctly captured it: `server_ip: 192.168.88.1`, the gateway's
+    real MAC, `acks: 1`, `offered_ip_sample: ["192.168.88.147"]` --
+    matching exactly what `/api/network/eth0/mode` reported as the
+    freshly-leased address. `offers: 0` because the client did a
+    direct DHCPREQUEST/ACK renewal (it already held this lease from
+    before) rather than a full DISCOVER/OFFER cycle -- correct
+    behavior for that client state, not a parsing gap.
+  - IP conflicts: `/api/network/ip-conflicts` correctly flagged a real
+    conflict on `192.168.88.149`, claimed by two real MAC addresses
+    seen on the wire. Investigating which devices they were revealed
+    both belong to the Pi itself (`b8:27:eb:9a:d3:eb` is eth0's own
+    MAC from `/api/network/eth0`, the other is wlan0's) -- an artifact
+    of this development rig's eth0 TEST PORT currently being plugged
+    into the same LAN segment as wlan0's network rather than a
+    genuinely isolated test network, not a detector bug: two real MAC
+    addresses really were claiming the same real IP on the wire the
+    capture sees, exactly the condition this feature is meant to
+    surface. Confirms the detection logic works end-to-end against
+    real ARP traffic, not just the synthetic frames in
+    `test_ip_conflict.py`.
 
 ## Known gaps
 
@@ -787,17 +851,23 @@ from before this date, that history no longer exists.
   replug), and every `getElementById` reference in the new JS matches
   a real element id, but the actual rendered table/reset button was
   not clicked through in a real browser.
+- The new "IP Conflict Detection" and "DHCP Server Detection" dashboard
+  cards have the same gap: both APIs were live-verified directly
+  against real ARP/DHCP traffic (see Verified section above), and
+  every `getElementById` reference in the new JS matches a real
+  element id, but neither card was clicked through in a real browser.
 
 ## Next steps
 
 - **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.
-  Link event history (V0.3 backlog item) is complete.** Next up is
-  either V0.3 industrial protocol work (PROFINET/S7 -- deliberately
-  deferred until real PLC hardware is available) or one of the
-  remaining V0.3 backlog items (unified device registry, duplicate IP
-  detection, rogue DHCP server detection -- see README), whichever the
+  Link event history, duplicate-IP detection, and rogue-DHCP detection
+  (V0.3 backlog items) are all complete.** Next up is either V0.3
+  industrial protocol work (PROFINET/S7 -- deliberately deferred until
+  real PLC hardware is available) or the one remaining V0.3 backlog
+  item (unified device registry -- see README), whichever the
   maintainer prioritizes.
-- Try the new Modbus tabs and the new Link Event History card in a
+- Try the new Modbus tabs and the three new dashboard cards (Link
+  Event History, IP Conflict Detection, DHCP Server Detection) in a
   real browser against a real device -- not yet done (see Known gaps
   above).
 - Verify the Kamstrup device templates' actual register map against a
