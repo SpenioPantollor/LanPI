@@ -114,6 +114,17 @@ RX/TX/error interface counters for `eth0`, via `ip -j -s link` and
 `ethtool` (shelled out to, parsed from their normal CLI output --
 no netlink library).
 
+### Link Event History
+
+Rather than only the current live snapshot above, a background poller
+checks `eth0`'s link state every 2 seconds and appends an event
+whenever presence, up/down state, speed, or duplex actually changes --
+RX/TX byte counters, which change on nearly every poll by definition,
+are deliberately excluded so ordinary traffic never adds a noise
+entry. Bounded to the most recent 500 events; resets when the backend
+restarts. Live-verified against a real cable pull/replug (see
+`STATUS.md`).
+
 ### Cable Diagnostics (not supported on the current development hardware)
 
 TDR (Time Domain Reflectometry) wire-pair quality and cable-length
@@ -509,8 +520,6 @@ hardware is available to test against):
   observations are both natural inputs to this once it exists, but
   aren't wired into anything today since the registry itself doesn't
   exist yet.
-* Link event history (up/down/speed-change log for `eth0`, not just
-  its current snapshot state)
 * Duplicate IP detection on the TEST PORT
 * Rogue/unexpected DHCP server detection on the TEST PORT
 

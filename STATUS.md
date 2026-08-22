@@ -59,6 +59,17 @@ analyzer correctly correlating every request/response pair generated
 by the other live tests in the same session, exception counting, and
 per-unit-ID/function-code relationship tracking.
 
+**Link event history (V0.3 backlog item) complete as of 2026-08-22**:
+a background poller (`backend/network/link_history.py`) checks eth0's
+link snapshot every 2s and logs an event only when presence/operstate/
+link_detected/speed/duplex change, never on RX/TX byte counters alone.
+Live-verified on the Pi against a real cable pull and replug (see
+Verified section below) -- a genuine DOWN event on unplug and a UP
+event with the correct restored speed/duplex on replug, with no
+spurious entries from steady-state traffic in between. Chosen first
+off the V0.3 backlog (maintainer's call, 2026-08-22) over duplicate-IP
+detection, rogue-DHCP detection, and the unified device registry.
+
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
 existing V0.1/V0.2 code more robust before building further
@@ -191,6 +202,13 @@ from before this date, that history no longer exists.
   - `GET /api/network/eth0` — link state, speed, duplex, autoneg, MAC,
     MTU, RX/TX counters, via `ip -j -s link` and `ethtool`
     (`backend/network/link.py`)
+  - `GET /api/network/eth0/history`, `POST .../reset` — link event
+    history (V0.3 backlog item, done 2026-08-22):
+    `backend/network/link_history.py` polls the same snapshot above
+    every 2s from a background thread and appends an event only when
+    presence/operstate/link_detected/speed/duplex actually change, not
+    on every poll (RX/TX counters are excluded on purpose, or every
+    poll would add a spurious entry). Bounded to the last 500 events.
   - `GET/POST /api/network/eth0/mode` — Passive/DHCP/Static IP mode for
     the TEST PORT (`backend/network/eth0_mode.py`), via a dedicated
     `lanpi-eth0` nmcli profile. Passive is the true default: `install.sh`
@@ -707,6 +725,16 @@ from before this date, that history no longer exists.
   - Device Registry integration (brief item #10) explicitly not
     implemented -- its dependency doesn't exist (see Known gaps and
     README's Roadmap).
+- Link event history (2026-08-22): baseline snapshot on deploy came
+  back correctly as a single initial event (100 Mbps/full/UP against
+  the connected test device), stayed stable with no spurious entries
+  over ~8s of steady traffic, then a real cable pull/replug on the
+  physical eth0 port produced exactly the expected pair of events --
+  DOWN (`operstate: DOWN`, `link_detected: false`, `speed_mbps`/
+  `duplex` both `null`) the moment the cable came out, UP with the
+  correct restored `speed_mbps: 100`/`duplex: full` on replug -- both
+  observed live via repeated polling of `/api/network/eth0/history`
+  during the pull/replug, not just asserted from the unit tests.
 
 ## Known gaps
 
@@ -753,17 +781,25 @@ from before this date, that history no longer exists.
   every API endpoint the JS calls is independently confirmed correct
   (see Verified section above). Not verified: actual click-through
   behavior, tab switching, or visual layout.
+- The new "Link Event History" dashboard card (`index.html`/`app.js`)
+  has the same gap as above: the API it renders was live-verified
+  directly (see Verified section above, including a real cable pull/
+  replug), and every `getElementById` reference in the new JS matches
+  a real element id, but the actual rendered table/reset button was
+  not clicked through in a real browser.
 
 ## Next steps
 
-- **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.**
-  Next up is either V0.3 industrial protocol work (PROFINET/S7 --
-  deliberately deferred until real PLC hardware is available) or one
-  of the V0.3 backlog items (device registry, link event history,
-  duplicate IP detection, DHCP server detection -- see README),
-  whichever the maintainer prioritizes.
-- Try the new Modbus tabs in a real browser against a real device --
-  not yet done (see Known gaps above).
+- **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.
+  Link event history (V0.3 backlog item) is complete.** Next up is
+  either V0.3 industrial protocol work (PROFINET/S7 -- deliberately
+  deferred until real PLC hardware is available) or one of the
+  remaining V0.3 backlog items (unified device registry, duplicate IP
+  detection, rogue DHCP server detection -- see README), whichever the
+  maintainer prioritizes.
+- Try the new Modbus tabs and the new Link Event History card in a
+  real browser against a real device -- not yet done (see Known gaps
+  above).
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).
