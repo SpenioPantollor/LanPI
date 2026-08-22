@@ -336,6 +336,20 @@ button:disabled {
   margin-top: 0;
 }
 
+/* Same idea as .capture-list-scroll, taller since ARP scan can
+   realistically return a couple dozen hosts on a real /24 -- without
+   this the card itself kept growing with the result count, reflowing
+   the whole Dashboard masonry layout (user-reported 2026-08-22). */
+.arp-scan-scroll {
+  max-height: 15rem;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+}
+
+.arp-scan-scroll .wifi-list {
+  margin-top: 0;
+}
+
 .card-hint {
   margin: 0.75rem 0 0;
   color: var(--text-dim);
