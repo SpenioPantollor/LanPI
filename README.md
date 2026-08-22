@@ -220,12 +220,20 @@ identification (not started).
   | HTTPS      |      443 |
   | VNC        |     5900 |
 
-Every active tool above (TCP test, MTR, IP scanner, port scanner,
-Modbus) sources its traffic specifically from `eth0`'s own address
-(socket bind, or `nmap -e`/`mtr -a`), not just any outbound socket --
-`eth0` deliberately has no default route, so an unbound connection to
-a host outside `eth0`'s subnet would otherwise silently go out
-`wlan0` instead.
+Every active tool above (Ping, TCP test, MTR, IP scanner, port
+scanner, Modbus) sources its traffic specifically from `eth0`'s own
+address (socket bind, or `ping -I`/`nmap -e`/`mtr -a`), not just any
+outbound socket -- `eth0` deliberately has no default route (see
+`ARCHITECTURE.MD` Rule 3), so an unbound connection to a host outside
+`eth0`'s subnet would otherwise silently go out `wlan0` instead.
+Reaching a target beyond `eth0`'s own subnet at all still needs
+something to route through: a second routing table, selected only for
+traffic sourced from `eth0`'s own address, holds a default route via
+`eth0`'s own gateway without ever touching the Pi's actual default
+route (see Rule 3) -- confirmed working for Ping and TCP test; MTR
+still doesn't produce hop data past `eth0`'s own subnet, an
+`mtr`-internal limitation with its own `-a` source-binding, not
+something this routing setup controls (see `STATUS.md`).
 
 ### Modbus TCP
 

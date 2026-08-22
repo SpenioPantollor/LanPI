@@ -686,6 +686,27 @@ confirmed live during development (see `STATUS.md`), where this cut
 off the Pi's own internet/git access until fixed. Enforced via
 `ipv4.never-default=yes` on the `lanpi-eth0` NetworkManager profile.
 
+This doesn't mean traffic that's actually testing the network under
+test can never reach past `eth0`'s own subnet -- ping/MTR/TCP-test
+exist specifically to test it. `backend/network/eth0_mode.py` sets up
+a second routing table (100), populated with a default route via
+`eth0`'s own gateway, selected only by a policy rule matching packets
+whose *source address* is `eth0`'s own address specifically
+(`ip rule ... from <eth0-address> lookup 100`). Nothing else on the Pi
+sources traffic from that address, so this can't reintroduce the
+Rule 3 incident above -- SSH/git/apt/NTP/etc. still have zero route to
+anywhere outside their own directly-connected subnet whenever `wlan0`
+itself has no route (e.g. while the fallback AP is active), exactly as
+Rule 3 requires; only the three tools that already deliberately bind
+their own traffic to `eth0`'s address (`ping.py`'s `-I`, `mtr.py`'s
+`-a`, `tcp_test.py`'s `socket.bind()`) pick up the second table's
+route. User-reported 2026-08-22 (`ping` to `8.8.8.8` failed with
+"Network is unreachable" even with `eth0` connected to a network with
+a real gateway) -- confirmed live: `ping`/TCP-test now correctly reach
+out-of-subnet targets through `eth0`'s gateway; `mtr` still doesn't
+(see `STATUS.md` -- an `mtr`-internal limitation with its own `-a`
+handling, not something this routing setup controls).
+
 ### Rule 4
 
 Default TEST PORT state after boot:

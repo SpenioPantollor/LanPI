@@ -100,6 +100,41 @@ real deployment where LanPi's own TEST PORT gets handed an
 already-in-use address is exactly the kind of conflict this feature
 exists to catch.
 
+**Captive-portal auto-popup removed, eth0 diagnostic-tool routing
+fixed (2026-08-22)**: two changes from the same live testing session
+(maintainer deleted known Wi-Fi networks to test the fallback AP
+trigger, which surfaced both).
+
+The captive-portal DNS hijack + nftables port-80 redirect + backend
+404→`/` redirect (`system/dnsmasq-ap.conf`, `system/lanpi-ap-up.sh`,
+`backend/main.py`) were all removed -- maintainer's call: it broke
+real DNS lookups for anyone using the fallback AP for anything other
+than reaching LanPi, and the OS auto-popup it was meant to trigger
+never reliably worked on iOS anyway. Clients now reach the dashboard
+directly at the AP's fixed address, same as always, just without the
+unreliable automation attempt.
+
+While testing the fallback AP trigger (confirmed working exactly as
+designed -- see Verified section below), the maintainer found the
+Ping tool failed outright against `8.8.8.8` even when `eth0` was
+separately connected to a real network with a real gateway --
+correctly diagnosed down to: `ipv4.never-default` (Rule 3) meant there
+was no route *anywhere* for `eth0`-sourced traffic beyond its own
+subnet, not just no *system default* route, so a tool whose entire
+purpose is testing the network under test couldn't reach anything past
+its immediate subnet. Fixed with a second routing table (100) that
+`eth0_mode.py` populates with a default route via `eth0`'s own
+gateway, selected only by a policy rule matching `eth0`'s own source
+address -- see the eth0/mode entry above and ARCHITECTURE.MD Rule 3
+for why this can't reintroduce the original incident that rule
+exists to prevent. `ping.py` also gained the same `eth0`-address
+binding `mtr.py`/`tcp_test.py` already had (a real, if minor, gap:
+README already documented "every active tool" as eth0-sourced, but
+`ping.py` wasn't). Both fixes live-verified (see Verified section
+below); MTR did **not** turn out to work for out-of-subnet targets
+even with the routing fix in place -- an `mtr`-internal limitation,
+documented in Known gaps.
+
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
 existing V0.1/V0.2 code more robust before building further
@@ -256,6 +291,18 @@ from before this date, that history no longer exists.
     disables autoconnect on every ethernet profile bound to eth0
     (including whatever the OS itself generated), so eth0 comes up with
     no IP and no L3 traffic at every boot (ARCHITECTURE.MD Rule 4).
+    `set_dhcp()`/`set_static()` also (re)establish a second routing
+    table (100) with a default route via `eth0`'s own gateway, selected
+    only by a policy rule matching "from `eth0`'s own address" --
+    `set_passive()` tears it down. Lets `ping.py`/`mtr.py`/
+    `tcp_test.py` (all three already bind their own traffic to that
+    address) reach targets beyond `eth0`'s own subnet through the test
+    network's own gateway, without the Pi's *system* default route ever
+    leaving `wlan0` (ARCHITECTURE.MD Rule 3, expanded 2026-08-22 --
+    user-reported: `ping` to `8.8.8.8` failed outright even with `eth0`
+    connected to a real gateway, since Rule 3 meant there was no route
+    *anywhere* for `eth0`-sourced traffic beyond its own subnet, not
+    just no *system default* route).
   - `GET /api/discovery/lldp` — passive LLDP neighbor discovery
     (`backend/discovery/lldp.py`): background thread runs `tcpdump`
     continuously, parses LLDP TLVs from its pcap stream, caches the
@@ -341,7 +388,9 @@ from before this date, that history no longer exists.
     exiting, which is what fills in the final `transmitted`/
     `packet_loss_percent`. `transmitted` stays `null` while still
     running since ping doesn't emit anything for a lost/pending packet
-    to count from.
+    to count from. Sources from `eth0`'s address (`-I`, added
+    2026-08-22 -- see the eth0 test-route entry below) same as
+    MTR/TCP-test already did.
   - `GET/POST /api/network/ap` — fallback AP status and SSID/password
     config, backed by `/etc/hostapd/hostapd.conf`
     (`backend/network/ap.py`).
@@ -796,6 +845,64 @@ from before this date, that history no longer exists.
     surface. Confirms the detection logic works end-to-end against
     real ARP traffic, not just the synthetic frames in
     `test_ip_conflict.py`.
+- Fallback AP trigger timing (2026-08-22): maintainer deleted every
+  known Wi-Fi network on the deployed Pi to test it for real. Journal
+  confirmed the exact designed sequence: `"no known Wi-Fi network for
+  25s, starting fallback AP"` at the 25s mark
+  (`_DOWN_THRESHOLD`/`lanpi-wifi-fallback.sh`), hostapd `AP-ENABLED`
+  a moment later, a real device associating (WPA handshake completed)
+  and getting a DHCP lease (`172.24.58.49`) shortly after. `iw dev
+  wlan0 station dump` from the Pi side showed the association steadily
+  exchanging real traffic (rx/tx byte/packet counters climbing), and a
+  ping from the Pi to the joined client succeeded both ways -- the L2
+  AP mechanics work correctly end-to-end.
+- eth0 diagnostic-tool routing fix (2026-08-22): while the AP test
+  above was running, the maintainer's own `ssh lanpi` session (over
+  `wlan0`) dropped as expected (recorded in
+  `lanpi_hardware_access.md` memory as the documented recovery
+  scenario) -- switched to the `eth0`-backed SSH path
+  (`192.168.88.147`) to keep working, per that same memory. From
+  there:
+  - Confirmed the actual bug: `ip route` on the Pi showed zero default
+    route in *any* table (not `eth0` specifically -- `wlan0` had none
+    either, since it was in AP mode) -- `ping 8.8.8.8` failed
+    immediately with "Network is unreachable", explaining the
+    maintainer's "ping tool immediately shows stopped" report exactly
+    (the ping subprocess exits right away on that error rather than
+    hanging).
+  - After deploying the routing fix (see Summary above), re-testing
+    hit a red herring first: calling `/api/network/eth0/mode` over
+    HTTP to `192.168.88.147:8000` timed out at the raw TCP level with
+    zero requests reaching the uvicorn access log -- initially looked
+    like the new code had hung the server. It hadn't: this is
+    `system/nftables.conf`'s v0.2.3 Foundation #1 rule
+    (`iifname "eth0" tcp dport 8000 drop`) doing exactly what it's
+    supposed to -- port 8000 is deliberately unreachable via `eth0`
+    (ARCHITECTURE.MD Rule 7), only SSH(22) is kept open there on
+    purpose. Confirms Rule 7 is still correctly enforced; the fix was
+    tested by calling `eth0_mode`/`ping`/`tcp_test` directly via a
+    Python one-liner over the `eth0` SSH session instead of HTTP.
+  - With that resolved: `ip rule list` showed `100: from
+    192.168.88.147 lookup 100`, `ip route show table 100` showed
+    `default via 192.168.88.1 dev eth0`. `ping.start("8.8.8.8",
+    count=3)` → 3/3 received, 0% loss, ~6.7ms RTT. `tcp_test.test_port
+    ("8.8.8.8", 53)` → `open`, 21.9ms. Both real, live, out-of-`eth0`'s
+    -subnet successes. The Pi's own *system* default route was
+    independently confirmed still empty in every table the whole time
+    (`ip route show table main` unchanged, an unbound `ping 8.8.8.8`
+    from the Pi's own shell still correctly failed) -- proof the fix
+    is scoped exactly as intended, not a blanket default-route change.
+  - MTR did not benefit: `mtr --report --json -a <eth0-ip> -c 3
+    8.8.8.8` returns zero hops even with the exact same routing/rule
+    setup in place (confirmed via a concurrent `tcpdump` on `eth0`
+    during the run: **zero packets sent** -- `mtr` itself never
+    attempts a probe, not a routing or receive-side failure). The same
+    `mtr` invocation against a same-subnet target (`192.168.88.1`, no
+    gateway hop needed) works fine and shows a real hop with real RTT
+    -- isolating this to `mtr` 0.95's own handling of `-a` combined
+    with a non-default route via policy routing, not anything this
+    project's code controls. Documented as a Known gap rather than
+    chased further.
 
 ## Known gaps
 
@@ -807,6 +914,16 @@ PROFINET/S7 device's traffic, an actual Kamstrup meter's register
 values) against hardware that hasn't been available to test against
 yet -- see "Next steps" below for those.
 
+- MTR does not reach targets beyond `eth0`'s own subnet -- confirmed
+  via `tcpdump` that `mtr` itself sends zero probe packets in that
+  case, even with the exact same `eth0`-gateway routing table/policy
+  rule in place that lets Ping and TCP test reach the same targets
+  successfully (see the "eth0 diagnostic-tool routing fix" verification
+  entry above). Appears to be `mtr` 0.95's own handling of `-a`
+  (source-address bind) combined with a non-default route reached via
+  Linux policy routing, not something `mtr.py`'s invocation or this
+  project's routing setup controls. MTR against a target on `eth0`'s
+  own directly-connected subnet is unaffected and works normally.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
