@@ -10,6 +10,13 @@ WorkingDirectory=/home/lanpi/lanpi
 ExecStart=/home/lanpi/lanpi/venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
+# Needed for SO_BINDTODEVICE in tcp_test.py/modbus.py, which forces
+# outbound sockets onto the physical eth0 device -- an address-only
+# bind isn't enough when eth0 and wlan0 share a subnet (see those
+# modules' docstrings, 2026-08-22). Ambient, not a CapabilityBoundingSet
+# restriction, so it doesn't touch anything this service already does
+# via sudo (nmcli/nmap/hostapd).
+AmbientCapabilities=CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target

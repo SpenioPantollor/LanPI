@@ -11,10 +11,21 @@ passive/non-disruptive operation (ARCHITECTURE.MD's Safety section) --
 write functions would let this tool modify a live industrial device's
 outputs, out of scope unless explicitly requested.
 
-Sourced from eth0's current address (socket bind), same reasoning as
-tcp_test.py: eth0 has no default route by design, so an unbound
-connect() to a host outside eth0's subnet would silently go out wlan0
-instead.
+Sourced from eth0's current address (socket bind) AND the eth0 device
+itself (SO_BINDTODEVICE), same reasoning as tcp_test.py: an
+address-only bind isn't enough when eth0 and wlan0 both have a route
+to the same subnet (this dev rig's eth0 test switch uplinks into the
+same LAN as wlan0) -- Linux's weak-host-model routing then picks
+whichever interface has the lower metric for the destination
+regardless of the bound source address, so requests can silently go
+out wlan0 while still claiming eth0's source IP. Confirmed live
+2026-08-22: the passive Modbus traffic analyzer (backend/capture/
+modbus_traffic.py), which only watches eth0, never saw a single
+request despite reads succeeding -- parallel tcpdump on both
+interfaces during a real read showed the request on wlan0, only the
+response on eth0. SO_BINDTODEVICE closes that gap by forcing the
+actual physical interface; needs CAP_NET_RAW, granted to
+lanpi.service via AmbientCapabilities.
 """
 
 from __future__ import annotations
@@ -61,6 +72,17 @@ _DEVICE_ID_OBJECT_NAMES = {
 
 _transaction_lock = threading.Lock()
 _transaction_id = 0
+
+
+def _bind_to_eth0_device(sock: socket.socket) -> None:
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"eth0")
+    except (OSError, AttributeError):
+        # OSError: no CAP_NET_RAW. AttributeError: SO_BINDTODEVICE
+        # doesn't exist on this platform (e.g. macOS, used for local
+        # dev testing -- it's Linux-only). Either way, falls back to
+        # address-only binding.
+        pass
 
 
 def _next_transaction_id() -> int:
@@ -133,6 +155,7 @@ def read(
     header = None
     body = None
     try:
+        _bind_to_eth0_device(sock)
         sock.bind((source_ip, 0))
         sock.connect((host, port))
         sock.sendall(request)
@@ -263,6 +286,7 @@ def read_device_identification(host: str, unit_id: int, port: int = 502, timeout
     sock.settimeout(timeout)
     started = time.monotonic()
     try:
+        _bind_to_eth0_device(sock)
         sock.bind((source_ip, 0))
         sock.connect((host, port))
 

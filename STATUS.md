@@ -197,6 +197,57 @@ this session -- no browser/display available in this environment), so
 the CSS fix itself rests on understanding the cascade bug, not a
 visual re-test.
 
+**Real eth0-vs-wlan0 physical-egress bug found and fixed (2026-08-22)**,
+user-reported starting from "Modbus TCP traffic doesn't show any
+packets after a real read". Investigation on the Pi (parallel `tcpdump
+-i eth0` and `tcpdump -i wlan0` during a real live Modbus read against
+192.168.88.21) showed the read's *response* arriving on `eth0` as
+expected, but the *request* (SYN, the Modbus PDU itself, ACKs) left
+via `wlan0` instead -- still carrying `eth0`'s source IP
+(192.168.88.147). Root cause: `ping.py`/`tcp_test.py`/`modbus.py` all
+bound their outbound socket to eth0's *address* only (`sock.bind((ip,
+0))` or `ping -I <ip>`), never to the eth0 *device*. On this dev rig,
+eth0 and wlan0 both carry a route to the same subnet
+(192.168.88.0/24 -- the eth0 test switch uplinks into the same LAN as
+wlan0, see Hardware section), and Linux's weak-host-model routing
+picks the lower-metric interface for the destination (`wlan0`, metric
+600, vs `eth0`, metric 700 -- see the eth0 route-metric fix earlier
+this file) regardless of which address the socket is bound to. An
+address-only bind can't override that; it just makes the packet claim
+a source IP that isn't actually native to the interface it left on.
+This directly explains the original report: `backend/capture/
+modbus_traffic.py` only watches `eth0` via the shared dispatcher, so
+it never saw the request half of the conversation, only the response
+(which correctly arrives on `eth0` because ARP for 192.168.88.147
+only ever resolves to eth0's real MAC).
+
+**Fix**: `tcp_test.py` and `modbus.py` (new `_bind_to_eth0_device()`
+helper) now call `setsockopt(SOL_SOCKET, SO_BINDTODEVICE, b"eth0")`
+before binding, which forces the actual physical interface regardless
+of routing-table metrics -- wrapped in `except (OSError,
+AttributeError)` since it needs `CAP_NET_RAW` (not present without the
+capability grant below) and doesn't exist at all on non-Linux
+platforms (macOS, used for this project's local-venv pre-deploy
+testing -- confirmed live via a fresh venv that both the affected
+modbus tests and the full 157-test suite still pass with this
+fallback). `ping.py` switched from `-I <address>` to `-I eth0` (an
+interface *name*, which makes `ping` itself use `SO_BINDTODEVICE`
+internally) -- Debian's `ping` binary already carries `cap_net_raw` as
+a file capability, so no capability grant was needed for that one.
+`mtr.py` has no interface-bind flag (only `-a <address>`, same
+limitation as before) and is not fixed by this change -- documented as
+a known gap, same treatment as its existing no-TCP-reassembly caveat.
+`ip_scanner.py`/`port_scanner.py` use nmap's `-e eth0`, which crafts
+and injects packets at the device level rather than going through a
+normal `connect()`, so they're believed unaffected by this same
+routing-table ambiguity (not independently re-verified this pass).
+`system/lanpi.service` gained `AmbientCapabilities=CAP_NET_RAW` (not a
+`CapabilityBoundingSet` restriction, so it doesn't touch the existing
+sudo-based nmcli/nmap/hostapd privilege escalation) -- requires
+`sudo cp system/lanpi.service /etc/systemd/system/lanpi.service &&
+systemctl daemon-reload && systemctl restart lanpi.service` on deploy,
+not just a `git pull` (unlike a pure code/frontend change).
+
 **Selectable Windows 98/95-style theme added (2026-08-22)**, per a
 maintainer request: an optional visual theme alongside the existing
 dark theme, which stays the default. `frontend/theme.css` layers

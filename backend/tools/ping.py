@@ -13,13 +13,21 @@ count, or when stopped via SIGINT. That same final output also has an
 authoritative "rtt min/avg/max/mdev" line, which overwrites the
 live-computed min/avg/max with ping's own (more precise) numbers.
 
-Sourced from eth0's current address (via `-I`), same reasoning as
-mtr.py/tcp_test.py: eth0 has no default route by design, so an unbound
-ping to a host outside eth0's local subnet would silently go out
-wlan0 instead. Requires DHCP/Static mode -- Passive has no source
-address to bind. (This was previously missing here -- ping was the one
-tool not actually doing what README already documented for "every
-active tool", user-reported 2026-08-22.)
+Sourced from the eth0 device itself (`-I eth0`, an interface name --
+not eth0's address). An address-only `-I <ip>` isn't enough: when
+eth0 and wlan0 both have a route to the same subnet (this dev rig's
+eth0 test switch uplinks into the same LAN as wlan0), Linux's
+weak-host-model routing picks the lower-metric interface for the
+destination regardless of the bound source address, so ping could
+silently transmit out wlan0 while still claiming eth0's source IP
+(the same gap found and fixed in tcp_test.py/modbus.py, confirmed
+live 2026-08-22 via parallel tcpdump on both interfaces). `ping -I
+<name>` forces the actual device via SO_BINDTODEVICE, unlike `-I
+<address>` which only sets the source address -- Debian's `ping`
+binary already carries the needed capability itself (`cap_net_raw`),
+no change needed on LanPi's own process for this one. Still checks
+eth0 has an address first (DHCP/Static mode; Passive has none) since
+an interface with no address can't originate real traffic either way.
 """
 
 from __future__ import annotations
@@ -123,7 +131,7 @@ def start(host: str, count: int | None = None) -> dict:
                        "(Passive mode has no source address to ping from)",
         }
 
-    args = [ping_bin, "-I", source_ip]
+    args = [ping_bin, "-I", "eth0"]
     if count:
         args += ["-c", str(count)]
     args.append(host)
