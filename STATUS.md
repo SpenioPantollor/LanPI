@@ -248,6 +248,16 @@ sudo-based nmcli/nmap/hostapd privilege escalation) -- requires
 systemctl daemon-reload && systemctl restart lanpi.service` on deploy,
 not just a `git pull` (unlike a pure code/frontend change).
 
+**Fix confirmed live** after deploying + restarting the service with
+the new capability: repeated the exact same parallel-tcpdump test --
+`tcpdump -i wlan0` filtered to the Modbus request's own host/port
+captured **zero packets** this time (was the full request before), and
+`GET /api/tools/modbus/traffic` correctly showed the relationship (1
+request, 1 response, 0 exceptions, 0.2ms response time -- much faster
+than before, consistent with the traffic now genuinely taking the
+direct eth0-to-switch path instead of routing out through wlan0/the
+AP and back in).
+
 **Selectable Windows 98/95-style theme added (2026-08-22)**, per a
 maintainer request: an optional visual theme alongside the existing
 dark theme, which stays the default. `frontend/theme.css` layers
