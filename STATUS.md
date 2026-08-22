@@ -1,6 +1,6 @@
 # LanPi — Project Status
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 This file tracks what has actually been built and deployed, as a
 day-to-day companion to the long-term plan in `ARCHITECTURE.MD`.
@@ -39,6 +39,25 @@ mechanics and register-map accuracy are separate claims. PROFINET
 DCP/traffic detection, S7 diagnostics, and industrial device ID are
 still open, deliberately deferred until real PLC hardware is available
 (maintainer's call, 2026-08-21) -- not started in this pass.
+
+**v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
+per a maintainer-provided implementation brief expanding basic Modbus
+read into a full diagnostic toolset: Device Identification (FC43/
+MEI14), an exception decoder (already existed, confirmed), a register
+data-interpretation helper (16/32-bit, all 4 byte orders), response
+timing + raw request/response view, a Unit ID scanner, a
+bisection-based register range scanner, live polling with
+communication statistics, and passive Modbus TCP traffic analysis
+built on the v0.2.3 shared capture dispatcher. Device Registry
+integration (brief item #10) was explicitly skipped -- its dependency,
+a unified device registry, doesn't exist yet (see the V0.3 backlog in
+README) -- per the maintainer's instruction to do everything in the
+brief except what depends on something planned for a later version.
+All of it live-verified against the real Modbus TCP slave at
+192.168.88.21 (see Verified section below), including the passive
+analyzer correctly correlating every request/response pair generated
+by the other live tests in the same session, exception counting, and
+per-unit-ID/function-code relationship tracking.
 
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
@@ -643,6 +662,51 @@ from before this date, that history no longer exists.
   got a real default value (`8.8.8.8`) instead of a placeholder-only
   hint that looked filled in but wasn't (submitting with nothing typed
   silently no-op'd on the `if (!host) return` guard).
+- v0.2.4 Modbus TCP diagnostics expansion -- **every new piece
+  confirmed live against the real Modbus TCP slave at 192.168.88.21**:
+  - `read()`'s new `response_time_ms`/`raw_request`/`raw_response`
+    fields: confirmed on a real holding-register read (real timing,
+    real hex bytes matching the actual request/response).
+  - Device Identification (FC43/MEI14): confirmed the real slave
+    returns "Illegal Function" (it doesn't support this), and that
+    this is correctly reported as `supported: false` with a clear
+    message, not shown as a generic communication error.
+  - Data interpretation helper: confirmed against real register values
+    read from the slave (UINT16/INT16/HEX/BINARY/UINT32/INT32/FLOAT32
+    all populated correctly for a real 2-register pair).
+  - Unit ID scan (range 1-5): confirmed live, all 5 unit IDs classified
+    "responding" (this particular test slave answers any unit ID).
+  - Register range scan (holding registers, 0-19): confirmed live --
+    single-block probe succeeded (all 20 readable), no unnecessary
+    bisection, `progress`/`total` matched exactly (20/20).
+  - Live polling (500ms interval): confirmed live, 5/5 successful
+    requests, 0 timeouts/exceptions, real min/avg/max response times
+    (28.4/33.3/40.5 ms).
+  - Passive Modbus TCP traffic analysis: **this is the strongest
+    verification of the batch** -- after running the reads/scans/poll
+    above, `/api/tools/modbus/traffic` showed every one of them
+    correctly captured and correlated purely passively through the
+    shared dispatcher: 8 requests/8 responses on the main FC3
+    relationship (matching the sum of every FC3 read made), 2
+    requests/2 responses/**2 exceptions** on the FC43 relationship
+    (matching the 2 Device Identification attempts, both correctly
+    getting the real "Illegal Function" exception), and unit IDs 2-5
+    each showing exactly 1 request/response (matching the unit scan
+    exactly) -- real proof the Transaction-ID-based request/response
+    correlation works correctly against genuine traffic, not just the
+    synthetic frames in `test_modbus_traffic.py`.
+  - Frontend (Read/Scan/Monitor/Traffic tabs): static assets confirmed
+    serving correctly (200s, all tab container IDs present in the
+    served HTML) and all `getElementById` references in `modbus.js`
+    cross-checked against `modbus.html`'s actual element IDs with no
+    mismatches. **Not independently tested in a real browser** --
+    no browser/display available in this environment; the interactive
+    behavior (tab switching, form submission, live-updating tables)
+    is inferred from code review and the confirmed-correct API
+    responses those handlers consume, not from clicking through it.
+  - Device Registry integration (brief item #10) explicitly not
+    implemented -- its dependency doesn't exist (see Known gaps and
+    README's Roadmap).
 
 ## Known gaps
 
@@ -674,14 +738,32 @@ from before this date, that history no longer exists.
   #10 migration -- structurally identical to the already-verified
   wifi.py/eth0_mode.py usage, but not flipped live to confirm (see
   Verified section above).
+- Modbus passive traffic analysis (`modbus_traffic.py`) does not do
+  TCP stream reassembly -- a request/response split across TCP
+  segments won't be parsed (silently undercounted, not misread), and
+  "missing response" is a best-effort signal, not proof (a response
+  this capture simply missed looks identical to one that was never
+  sent). Documented in the module and surfaced in the UI; real traffic
+  in this session's live test was well within one packet each way, so
+  this specific edge case hasn't been hit/tested.
+- The v0.2.4 Modbus frontend (Read/Scan/Monitor/Traffic tabs) was not
+  tested in a real browser -- no display/browser available in this
+  environment. Verified: static assets serve correctly, every
+  `modbus.js` element reference matches a real `modbus.html` id, and
+  every API endpoint the JS calls is independently confirmed correct
+  (see Verified section above). Not verified: actual click-through
+  behavior, tab switching, or visual layout.
 
 ## Next steps
 
-- **V0.2.3 Foundation is complete.** Next up is either V0.3 industrial
-  protocol work (PROFINET/S7 -- deliberately deferred until real PLC
-  hardware is available) or one of the V0.3 backlog items (device
-  registry, link event history, duplicate IP detection, DHCP server
-  detection -- see README), whichever the maintainer prioritizes.
+- **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.**
+  Next up is either V0.3 industrial protocol work (PROFINET/S7 --
+  deliberately deferred until real PLC hardware is available) or one
+  of the V0.3 backlog items (device registry, link event history,
+  duplicate IP detection, DHCP server detection -- see README),
+  whichever the maintainer prioritizes.
+- Try the new Modbus tabs in a real browser against a real device --
+  not yet done (see Known gaps above).
 - Verify the Kamstrup device templates' actual register map against a
   real Kamstrup meter when one's available (the read protocol itself
   is already confirmed against a real Modbus slave).

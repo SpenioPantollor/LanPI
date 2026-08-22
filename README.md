@@ -195,23 +195,62 @@ a host outside `eth0`'s subnet would otherwise silently go out
 
 ### Modbus TCP
 
-Read-only Modbus TCP client -- coils, discrete inputs, holding
-registers, input registers (function codes 1-4). **Hand-rolled, not
-`pymodbus` or any Modbus library**: the MBAP header + PDU format is
-simple enough to build and parse directly with `socket` + `struct`,
-consistent with this project's LLDP/CDP/MNDP parsers. No write
-functions by design (see Safety, below).
+A dedicated Modbus page (Read / Scan / Monitor / Traffic tabs), built
+on a hand-rolled Modbus TCP client -- **not `pymodbus` or any Modbus
+library**, the MBAP header + PDU format is simple enough to build and
+parse directly with `socket` + `struct`, consistent with this
+project's LLDP/CDP/MNDP parsers. Read-only by design, no write
+functions (see Safety, below).
 
-Includes 32-bit IEEE float decoding for registers that need it (many
-metering devices, e.g. Kamstrup heat/water meters, report everything
-as float32 across register pairs) and named **device templates** --
-a unit ID plus a labeled list of registers, read all at once with
-their labels attached, so a known device type's function code/
-address/quantity don't need re-entering by hand every time. Templates
-live in `config/modbus_templates.json` (tracked in git -- a device's
-register map is manufacturer documentation, not site-specific data);
-`config/modbus_templates.example.json` is a placeholder showing the
-format.
+**Read:**
+
+* Coils, discrete inputs, holding registers, input registers (function
+  codes 1-4), with response time and an optional raw request/response
+  hex view on every read
+* **Device Identification** (FC43 / MEI type 14) -- vendor/product/
+  model/revision info, when the device supports it; a device that
+  doesn't is reported distinctly ("not supported"), not shown as a
+  communication failure
+* **Data interpretation** on the last read's register values --
+  UINT16/INT16/UINT32/INT32/FLOAT32/HEX/Binary, with an explicit,
+  caller-chosen byte order (ABCD/BADC/CDAB/DCBA) rather than a guess
+* Named **device templates** -- a unit ID plus a labeled list of
+  registers (including 32-bit float decoding), read all at once with
+  their labels attached, so a known device type's function code/
+  address/quantity don't need re-entering by hand every time. Templates
+  live in `config/modbus_templates.json` (tracked in git -- a device's
+  register map is manufacturer documentation, not site-specific data);
+  `config/modbus_templates.example.json` is a placeholder showing the
+  format.
+
+**Scan:**
+
+* **Unit ID scan** -- probes a range of unit IDs (useful behind a
+  Modbus TCP-to-RTU gateway), sequential and conservative; a Modbus
+  exception still counts as "responding"
+* **Register range scan** -- finds which addresses are readable with
+  no register map to go on, probing whole blocks at once and only
+  bisecting where a block fails, so a mostly-readable or
+  mostly-unreadable range costs O(log n) requests, not one per register
+
+**Monitor:**
+
+* **Live polling** -- repeatedly reads one register/block on an
+  interval, tracking request/timeout/exception counts and
+  response-time min/avg/max, useful for spotting an unstable or
+  overloaded device a single read wouldn't reveal
+
+**Traffic:**
+
+* **Passive Modbus TCP analysis** -- built on the same shared capture
+  dispatcher as LLDP/CDP/MNDP/Traffic Stats (no separate listener),
+  tracking client/server/unit-ID/function-code relationships with
+  request/response/exception counts and timing, correlated via the
+  Modbus TCP Transaction ID. Inspects individual captured packets
+  without TCP stream reassembly, so a request/response split across
+  TCP segments won't be counted, and "missing response" is a
+  best-effort signal, not proof -- a response this capture simply
+  missed looks identical to one that was never sent.
 
 ### Passive Traffic Analysis
 
@@ -262,16 +301,20 @@ changed along the way):
   rather than one large file.
 * **Network configuration**: NetworkManager, exclusively via `nmcli`
   (no `dhcpcd`-based Pi OS releases supported).
-* **Neighbor discovery** (LLDP/CDP/MNDP) and **traffic
-  statistics/Top Talkers**: hand-rolled parsers, no `scapy` or any
-  packet-parsing library anywhere in the project. All four share one
-  background `tcpdump -w -` capture (`backend/capture/dispatcher.py`)
-  instead of running one process each; each listener filters and
-  parses the frames it cares about from that shared feed with
-  `struct`. The dispatcher's own health (is it actually running, when
-  did it last see a packet) is exposed in `/api/status`.
+* **Neighbor discovery** (LLDP/CDP/MNDP), **traffic statistics/Top
+  Talkers**, and **passive Modbus TCP analysis**: hand-rolled parsers,
+  no `scapy` or any packet-parsing library anywhere in the project. All
+  five share one background `tcpdump -w -` capture
+  (`backend/capture/dispatcher.py`) instead of running one process
+  each; each listener filters and parses the frames it cares about
+  from that shared feed with `struct`. The dispatcher's own health (is
+  it actually running, when did it last see a packet) is exposed in
+  `/api/status`.
 * **Modbus TCP**: hand-rolled client (`socket` + `struct`) -- no
-  `pymodbus` or any Modbus library.
+  `pymodbus` or any Modbus library. Unit ID scan, register range scan,
+  and live polling are plain Python background threads over that same
+  client (no subprocess involved, so no process-lifecycle concerns
+  the way `mtr`/`nmap` have).
 * **TCP port test**: hand-rolled (`socket`), no library.
 * **Packet capture**: `tcpdump`, writing real `.pcap` files.
 * **Shelling out to system binaries** (`tcpdump`, `nmap`, `mtr`,
@@ -321,6 +364,8 @@ lanpi/
 │   ├── test_lldp.py / test_cdp.py / test_mndp.py
 │   ├── test_traffic_stats.py
 │   ├── test_modbus.py / test_modbus_templates.py
+│   ├── test_modbus_decode.py / test_modbus_unit_scan.py
+│   ├── test_modbus_register_scan.py / test_modbus_poll.py / test_modbus_traffic.py
 │   ├── test_eth0_mode.py
 │   ├── test_ip_scanner.py / test_port_scanner.py
 │   ├── test_pcap.py / test_dispatcher.py / test_shell.py
@@ -328,15 +373,20 @@ lanpi/
 │
 ├── backend/
 │   ├── main.py                 # FastAPI app, static file serving, startup listeners
+│   ├── shell.py                 # shared binary-discovery/subprocess helper
 │   ├── api/routes/             # every /api/* endpoint, split per feature (health,
 │   │                           # system, network, discovery, tools, modbus,
 │   │                           # capture, traffic)
 │   ├── network/                # wifi, eth0 mode, ap, link status
 │   ├── discovery/               # lldp.py, cdp.py, mndp.py (passive, background)
 │   ├── tools/                  # ping, arp_scan, tcp_test, mtr, ip_scanner,
-│   │                           # port_scanner, modbus, modbus_templates, system_info
+│   │                           # port_scanner, system_info, modbus.py,
+│   │                           # modbus_templates.py, modbus_decode.py,
+│   │                           # modbus_unit_scan.py, modbus_register_scan.py,
+│   │                           # modbus_poll.py
 │   └── capture/                # dispatcher.py (shared tcpdump feeding every
-│                                # passive listener), pcap.py, traffic_stats.py
+│                                # passive listener), pcap.py, traffic_stats.py,
+│                                # modbus_traffic.py
 │
 ├── frontend/                   # one .html + .js pair per page, no build step
 │   ├── index.html / app.js     # Dashboard
@@ -451,10 +501,14 @@ hardware is available to test against):
 
 * Unified device registry -- a single list merging every
   passively-observed device (LLDP/CDP/MNDP neighbors, Top Talkers,
-  scan results) into one view. Overlaps with a "passive device
-  discovery" feature already considered and dropped once as redundant
-  with Traffic's Top Talkers table (see `STATUS.md`) -- worth a
-  deliberate decision when the time comes, not assumed.
+  Modbus traffic, scan results) into one view. Overlaps with a
+  "passive device discovery" feature already considered and dropped
+  once as redundant with Traffic's Top Talkers table (see
+  `STATUS.md`) -- worth a deliberate decision when the time comes, not
+  assumed. Modbus Device Identification and passive Modbus traffic
+  observations are both natural inputs to this once it exists, but
+  aren't wired into anything today since the registry itself doesn't
+  exist yet.
 * Link event history (up/down/speed-change log for `eth0`, not just
   its current snapshot state)
 * Duplicate IP detection on the TEST PORT
