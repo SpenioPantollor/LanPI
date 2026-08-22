@@ -27,11 +27,16 @@ try {
 }
 _applyLanpiTheme(_lanpiTheme);
 
-const _themeSelect = document.getElementById("theme-select");
-if (_themeSelect) {
-  _themeSelect.value = _lanpiTheme;
-  _themeSelect.addEventListener("change", () => {
-    const theme = _themeSelect.value === "win98" ? "win98" : "default";
+// This script tag sits right after <header>, before <main> -- on
+// Settings, #theme-select lives inside <main> and doesn't exist in
+// the DOM yet at this point, so the lookup has to wait for the DOM
+// to finish parsing rather than running inline here.
+document.addEventListener("DOMContentLoaded", () => {
+  const themeSelect = document.getElementById("theme-select");
+  if (!themeSelect) return;
+  themeSelect.value = _lanpiTheme;
+  themeSelect.addEventListener("change", () => {
+    const theme = themeSelect.value === "win98" ? "win98" : "default";
     try {
       localStorage.setItem(LANPI_THEME_KEY, theme);
     } catch (err) {
@@ -40,4 +45,4 @@ if (_themeSelect) {
     }
     _applyLanpiTheme(theme);
   });
-}
+});
