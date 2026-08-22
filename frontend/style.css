@@ -97,6 +97,40 @@ h1 {
   font-size: 0.95rem;
 }
 
+/* Shown/hidden by active-tasks.js on every page -- a background job
+   (ping/MTR/capture/IP scan/port scan) keeps running on the Pi
+   regardless of which page you're looking at or whether you navigate
+   away entirely, so this is the only place that's always visible
+   showing whether anything still is (user-reported 2026-08-22: a
+   capture left running looked "stuck" with no way to tell it was
+   still active from another page). */
+.active-tasks-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.active-tasks-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: active-tasks-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes active-tasks-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 main {
   max-width: 96rem;
   margin: 0 auto;

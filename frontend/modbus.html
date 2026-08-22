@@ -16,6 +16,10 @@
       <div>
         <h1>Modbus TCP</h1>
         <p class="subtitle">Read-only Modbus TCP diagnostics on eth0</p>
+        <div id="active-tasks-badge" class="active-tasks-badge" hidden>
+          <span class="active-tasks-dot"></span>
+          <span id="active-tasks-label"></span>
+        </div>
       </div>
       <nav>
         <a href="/">Dashboard</a>
@@ -27,6 +31,7 @@
       </nav>
     </div>
   </header>
+  <script src="active-tasks.js"></script>
 
   <main class="stacked-cards">
     <div class="tabs" role="tablist">
