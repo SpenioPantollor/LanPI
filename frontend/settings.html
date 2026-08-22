@@ -78,7 +78,13 @@
         <dd id="wifi-ip">-</dd>
       </dl>
 
-      <div class="wifi-actions">
+      <p id="wifi-scan-ap-hint" class="card-hint" hidden>
+        Fallback AP is active -- this Pi has a single Wi-Fi radio, so it
+        can't scan for other networks while broadcasting its own. Use
+        "Add known network" below instead: it saves the credentials and
+        switches over automatically, no scan needed.
+      </p>
+      <div id="wifi-scan-actions" class="wifi-actions">
         <button id="wifi-scan-btn" type="button">Scan networks</button>
       </div>
       <ul id="wifi-networks" class="wifi-list"></ul>

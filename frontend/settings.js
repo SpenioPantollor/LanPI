@@ -2,6 +2,9 @@ async function loadWifiStatus() {
   const modeEl = document.getElementById("wifi-mode");
   const ssidEl = document.getElementById("wifi-ssid");
   const ipEl = document.getElementById("wifi-ip");
+  const scanActionsEl = document.getElementById("wifi-scan-actions");
+  const scanHintEl = document.getElementById("wifi-scan-ap-hint");
+  const scanResultsEl = document.getElementById("wifi-networks");
 
   try {
     const res = await fetch("/api/network/wifi");
@@ -17,6 +20,17 @@ async function loadWifiStatus() {
     modeEl.className = wifi.mode === "ap" ? "link-up" : "";
     ssidEl.textContent = wifi.ssid || "-";
     ipEl.textContent = wifi.ip_address || "-";
+
+    // Single Wi-Fi radio -- while the fallback AP owns wlan0, a scan
+    // can't return anything real (see wifi.py's scan() docstring).
+    // Swap the button for a hint pointing at "Add known network"
+    // instead, which works regardless of AP state.
+    const isAp = wifi.mode === "ap";
+    scanActionsEl.hidden = isAp;
+    scanHintEl.hidden = !isAp;
+    if (isAp) {
+      scanResultsEl.innerHTML = "";
+    }
   } catch (err) {
     modeEl.textContent = "unreachable";
   }
