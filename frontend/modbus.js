@@ -663,6 +663,11 @@ async function resetModbusTraffic() {
   loadModbusTraffic();
 }
 
+// Only polls while the Traffic sub-tab is actually the visible one --
+// started/stopped from the tab-click handler below, not on a page-wide
+// timer, since this is one of four panels sharing the same page.
+let modbusTrafficPollTimer = null;
+
 // ---------------------------------------------------------------------
 // Device Templates (existing)
 // ---------------------------------------------------------------------
@@ -770,7 +775,14 @@ async function submitModbusTemplateRead(event) {
 for (const btn of document.querySelectorAll(".tab-btn")) {
   btn.addEventListener("click", () => {
     switchModbusTab(btn.dataset.tab);
-    if (btn.dataset.tab === "traffic") loadModbusTraffic();
+    if (modbusTrafficPollTimer) {
+      clearInterval(modbusTrafficPollTimer);
+      modbusTrafficPollTimer = null;
+    }
+    if (btn.dataset.tab === "traffic") {
+      loadModbusTraffic();
+      modbusTrafficPollTimer = setInterval(loadModbusTraffic, 5000);
+    }
   });
 }
 
