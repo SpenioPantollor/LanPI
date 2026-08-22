@@ -551,6 +551,10 @@ available to test against):
   above
 * EtherNet/IP (CIP) -- Rockwell/Allen-Bradley's industrial protocol,
   needs real PLC hardware like PROFINET/S7 above
+* EtherCAT -- real-time fieldbus, needs a real EtherCAT master/slave
+  setup to test against; likely detection-only (frame/topology
+  observation) rather than a full master implementation, given this
+  project's read-only/non-disruptive stance elsewhere
 
 **General diagnostics:**
 
