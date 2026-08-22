@@ -113,6 +113,66 @@
     </section>
 
     <section class="card">
+      <h2>IP Conflict Detection</h2>
+      <p class="card-hint">
+        Passively watches ARP traffic on the TEST PORT -- an IP
+        claimed by more than one MAC address at the same time is
+        flagged here. A claim expires after 10 minutes of silence, so
+        a genuinely resolved conflict (a device going offline, a lease
+        changing hands) clears itself instead of lingering forever.
+      </p>
+      <div class="table-scroll">
+        <table id="ip-conflicts-table" class="data-table">
+          <thead>
+            <tr>
+              <th>IP</th>
+              <th>MAC addresses</th>
+            </tr>
+          </thead>
+          <tbody id="ip-conflicts-body"></tbody>
+        </table>
+      </div>
+      <p id="ip-conflicts-empty" class="card-hint"></p>
+      <div class="button-row">
+        <button id="ip-conflicts-reset-btn" type="button">Reset</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>DHCP Server Detection</h2>
+      <p class="card-hint">
+        Passively watches DHCP OFFER/ACK replies on the TEST PORT and
+        lists every distinct server seen answering -- more than one is
+        the actual rogue-DHCP symptom (clients getting leases from
+        whichever server answers first), regardless of which one is
+        "correct". No known-good server list is kept; judge which one
+        doesn't belong yourself.
+      </p>
+      <p id="dhcp-servers-warning" class="warn" hidden>
+        More than one DHCP server detected on this segment.
+      </p>
+      <div class="table-scroll">
+        <table id="dhcp-servers-table" class="data-table">
+          <thead>
+            <tr>
+              <th>Server IP</th>
+              <th>MAC</th>
+              <th>Offers</th>
+              <th>Acks</th>
+              <th>Sample offered IPs</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="dhcp-servers-body"></tbody>
+        </table>
+      </div>
+      <p id="dhcp-servers-empty" class="card-hint"></p>
+      <div class="button-row">
+        <button id="dhcp-servers-reset-btn" type="button">Reset</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Neighbor (LLDP)</h2>
       <p class="card-hint">Link Layer Discovery Protocol -- vendor-neutral, used by most switches/routers.</p>
       <dl id="lldp">

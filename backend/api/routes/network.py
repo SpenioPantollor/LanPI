@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.api.routes._shared import TEST_PORT_INTERFACE
+from backend.capture import dhcp_monitor, ip_conflict
 from backend.network import ap, eth0_mode, link, link_history, wifi
 
 router = APIRouter(prefix="/network")
@@ -22,6 +23,26 @@ def eth0_link_history() -> dict:
 @router.post("/eth0/history/reset")
 def eth0_link_history_reset() -> dict:
     return link_history.reset()
+
+
+@router.get("/ip-conflicts")
+def ip_conflicts_get() -> dict:
+    return ip_conflict.get_conflicts()
+
+
+@router.post("/ip-conflicts/reset")
+def ip_conflicts_reset() -> dict:
+    return ip_conflict.reset()
+
+
+@router.get("/dhcp-servers")
+def dhcp_servers_get() -> dict:
+    return dhcp_monitor.get_servers()
+
+
+@router.post("/dhcp-servers/reset")
+def dhcp_servers_reset() -> dict:
+    return dhcp_monitor.reset()
 
 
 class Eth0ModeRequest(BaseModel):

@@ -165,3 +165,19 @@ def test_eth0_link_history_get_and_reset():
     response = client.get("/api/network/eth0/history")
     assert response.status_code == 200
     assert response.json() == {"events": []}
+
+
+def test_ip_conflicts_get_and_reset():
+    assert client.post("/api/network/ip-conflicts/reset").json()["ok"] is True
+
+    response = client.get("/api/network/ip-conflicts")
+    assert response.status_code == 200
+    assert response.json() == {"conflicts": [], "tracked_ips": 0}
+
+
+def test_dhcp_servers_get_and_reset():
+    assert client.post("/api/network/dhcp-servers/reset").json()["ok"] is True
+
+    response = client.get("/api/network/dhcp-servers")
+    assert response.status_code == 200
+    assert response.json() == {"servers": [], "multiple_servers_detected": False}

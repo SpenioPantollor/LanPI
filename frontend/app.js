@@ -240,6 +240,90 @@ async function resetEth0History() {
   loadEth0History();
 }
 
+async function loadIpConflicts() {
+  const bodyEl = document.getElementById("ip-conflicts-body");
+  const emptyEl = document.getElementById("ip-conflicts-empty");
+
+  try {
+    const res = await fetch("/api/network/ip-conflicts");
+    const result = await res.json();
+    const conflicts = result.conflicts || [];
+
+    bodyEl.innerHTML = "";
+    if (conflicts.length === 0) {
+      emptyEl.textContent = `No conflicts (${result.tracked_ips ?? 0} IPs tracked).`;
+    } else {
+      emptyEl.textContent = "";
+      for (const conflict of conflicts) {
+        const tr = document.createElement("tr");
+        const macList = conflict.macs
+          .map((m) => `${m.mac} (${formatDuration(Math.round(Date.now() / 1000 - m.last_seen))} ago)`)
+          .join(", ");
+        tr.innerHTML = `<td class="warn">${conflict.ip}</td><td>${macList}</td>`;
+        bodyEl.appendChild(tr);
+      }
+    }
+  } catch (err) {
+    emptyEl.textContent = "unreachable";
+  }
+}
+
+async function resetIpConflicts() {
+  if (!window.confirm("Reset IP conflict tracking?")) return;
+  try {
+    await fetch("/api/network/ip-conflicts/reset", { method: "POST" });
+  } catch (err) {
+    // ignore, next load reflects actual state
+  }
+  loadIpConflicts();
+}
+
+async function loadDhcpServers() {
+  const bodyEl = document.getElementById("dhcp-servers-body");
+  const emptyEl = document.getElementById("dhcp-servers-empty");
+  const warningEl = document.getElementById("dhcp-servers-warning");
+
+  try {
+    const res = await fetch("/api/network/dhcp-servers");
+    const result = await res.json();
+    const servers = result.servers || [];
+
+    warningEl.hidden = !result.multiple_servers_detected;
+
+    bodyEl.innerHTML = "";
+    if (servers.length === 0) {
+      emptyEl.textContent = "No DHCP servers seen yet.";
+    } else {
+      emptyEl.textContent = "";
+      for (const server of servers) {
+        const tr = document.createElement("tr");
+        const lastSeen = new Date(server.last_seen * 1000).toLocaleTimeString();
+        tr.innerHTML = `
+          <td>${server.server_ip}</td>
+          <td>${server.mac}</td>
+          <td>${server.offers}</td>
+          <td>${server.acks}</td>
+          <td>${(server.offered_ip_sample || []).join(", ") || "-"}</td>
+          <td>${lastSeen}</td>
+        `;
+        bodyEl.appendChild(tr);
+      }
+    }
+  } catch (err) {
+    emptyEl.textContent = "unreachable";
+  }
+}
+
+async function resetDhcpServers() {
+  if (!window.confirm("Reset DHCP server tracking?")) return;
+  try {
+    await fetch("/api/network/dhcp-servers/reset", { method: "POST" });
+  } catch (err) {
+    // ignore, next load reflects actual state
+  }
+  loadDhcpServers();
+}
+
 async function loadEth0Mode() {
   const modeEl = document.getElementById("eth0-mode");
   const addressEl = document.getElementById("eth0-address");
@@ -895,6 +979,8 @@ function loadAll() {
   loadEth0();
   loadEth0Mode();
   loadEth0History();
+  loadIpConflicts();
+  loadDhcpServers();
   loadLldp();
   loadCdp();
   loadMndp();
@@ -908,6 +994,8 @@ document.getElementById("eth0-dhcp-btn").addEventListener("click", () => setEth0
 document.getElementById("eth0-static-btn").addEventListener("click", toggleEth0StaticForm);
 document.getElementById("eth0-static-form").addEventListener("submit", applyEth0Static);
 document.getElementById("eth0-history-reset-btn").addEventListener("click", resetEth0History);
+document.getElementById("ip-conflicts-reset-btn").addEventListener("click", resetIpConflicts);
+document.getElementById("dhcp-servers-reset-btn").addEventListener("click", resetDhcpServers);
 document.getElementById("ping-form").addEventListener("submit", startPing);
 document.getElementById("ping-stop-btn").addEventListener("click", stopPing);
 document.getElementById("arp-scan-form").addEventListener("submit", runArpScan);
