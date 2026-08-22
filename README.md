@@ -223,17 +223,15 @@ identification (not started).
 Every active tool above (Ping, TCP test, MTR, IP scanner, port
 scanner, Modbus) sources its traffic specifically from `eth0`'s own
 address (socket bind, or `ping -I`/`nmap -e`/`mtr -a`), not just any
-outbound socket -- `eth0` deliberately has no default route (see
-`ARCHITECTURE.MD` Rule 3), so an unbound connection to a host outside
-`eth0`'s subnet would otherwise silently go out `wlan0` instead.
-Reaching a target beyond `eth0`'s own subnet at all still needs
-something to route through: a second routing table, selected only for
-traffic sourced from `eth0`'s own address, holds a default route via
-`eth0`'s own gateway without ever touching the Pi's actual default
-route (see Rule 3) -- confirmed working for Ping and TCP test; MTR
-still doesn't produce hop data past `eth0`'s own subnet, an
-`mtr`-internal limitation with its own `-a` source-binding, not
-something this routing setup controls (see `STATUS.md`).
+outbound socket, so it always tests through the TEST PORT rather than
+silently going out `wlan0`. Reaching a target beyond `eth0`'s own
+directly-connected subnet -- a device behind its own gateway on the
+test network, e.g. a Siemens S7 PLC on a routed segment -- works too:
+`eth0` gets a real default route via its own gateway when connected,
+deprioritized below `wlan0`'s so the Pi's own general traffic
+(SSH/git/updates/...) still prefers `wlan0` whenever it has any route
+at all (see `ARCHITECTURE.MD` Rule 3). Confirmed working for Ping, MTR,
+and TCP test alike against a real out-of-subnet target.
 
 ### Modbus TCP
 
@@ -375,7 +373,14 @@ changed along the way):
   NetworkManager's built-in hotspot mode -- see `STATUS.md` for why).
 * **Frontend**: vanilla HTML/CSS/JavaScript, no framework, no build
   step, no bundler. Each page (Dashboard, Traffic, IP Scanner, Port
-  Scanner, Modbus, Settings) is a standalone `.html` + `.js` pair.
+  Scanner, Modbus, Settings) is a standalone `.html` + `.js` pair, plus
+  one shared `active-tasks.js` included on every page: a small pulsing
+  badge next to the page title naming any background job (Ping, MTR,
+  Capture, IP scan, port scan, or one of the three Modbus background
+  tasks) that's still running, even if it was started from a different
+  page or the page has since been reloaded -- these jobs run on the Pi
+  independently of any particular page, so this is the one place
+  that's always visible showing what's still active.
 
 ## Development Approach
 

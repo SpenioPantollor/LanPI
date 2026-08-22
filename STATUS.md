@@ -122,18 +122,26 @@ correctly diagnosed down to: `ipv4.never-default` (Rule 3) meant there
 was no route *anywhere* for `eth0`-sourced traffic beyond its own
 subnet, not just no *system default* route, so a tool whose entire
 purpose is testing the network under test couldn't reach anything past
-its immediate subnet. Fixed with a second routing table (100) that
-`eth0_mode.py` populates with a default route via `eth0`'s own
-gateway, selected only by a policy rule matching `eth0`'s own source
-address -- see the eth0/mode entry above and ARCHITECTURE.MD Rule 3
-for why this can't reintroduce the original incident that rule
-exists to prevent. `ping.py` also gained the same `eth0`-address
-binding `mtr.py`/`tcp_test.py` already had (a real, if minor, gap:
-README already documented "every active tool" as eth0-sourced, but
-`ping.py` wasn't). Both fixes live-verified (see Verified section
-below); MTR did **not** turn out to work for out-of-subnet targets
-even with the routing fix in place -- an `mtr`-internal limitation,
-documented in Known gaps. One consequence worth calling out: `ping`
+its immediate subnet. A first fix (second routing table + policy rule,
+see below) worked for Ping/TCP-test but not MTR; the maintainer then
+pushed for something simpler, correctly anticipating that real
+industrial gear (Siemens S7 PLCs among others) living behind its own
+gateway on the test network would hit the same wall as any other
+`eth0`-sourced tool. **Final fix**: `eth0` now gets a real default
+route like any other interface, but `ipv4.route-metric` pins it well
+above `wlan0`'s (see `_ETH0_ROUTE_METRIC` in `eth0_mode.py`) so
+`wlan0` stays preferred whenever it has any route at all -- `eth0`
+only becomes "the" default when `wlan0` has none (ARCHITECTURE.MD
+Rule 3 has the full two-attempts history). `ping.py` also gained the
+same `eth0`-address binding `mtr.py`/`tcp_test.py` already had (a
+real, if minor, gap: README already documented "every active tool" as
+eth0-sourced, but `ping.py` wasn't). All three tools live-verified
+against a real out-of-subnet target (`8.8.8.8`) with this final
+approach -- **including MTR**, which failed under the first
+(policy-routing) fix but produced a full, correct 8-hop trace once
+`eth0` had a normal route in the main table (see Verified section
+below) -- confirming the first fix's added complexity bought nothing
+MTR could actually use. One consequence worth calling out: `ping`
 now can't reach a target that's only reachable via `wlan0` (e.g. a
 device joined to the fallback AP) -- it never could for TCP test/MTR/
 IP scanner/port scanner either, since they were already `eth0`-bound
@@ -157,24 +165,37 @@ instant it expired → still `null` 3s later, not climbing again on its
 own).
 
 The same report also raised a real, broader gap: Ping/MTR/Capture/
-IP scan/Port scan all keep running on the Pi regardless of which page
-you're looking at (or even after closing the browser entirely -- this
-was already true, a consequence of them being background
+IP scan/Port scan/the three Modbus background tasks (unit scan,
+register scan, poll) all keep running on the Pi regardless of which
+page you're looking at (or even after closing the browser entirely --
+this was already true, a consequence of them being background
 Popen/thread-based processes owned by `lanpi.service`, not by any
 particular HTTP request or page), but there was no way to *tell* from
 another page, or after a fresh page load, that something was still
 active elsewhere. Added `frontend/active-tasks.js`, included on every
-page right after the header: polls all five tools' own status
+page right after the header: polls all eight tools' own status
 endpoints every 3s and shows a small pulsing badge next to the page
 title naming whatever's currently running, hidden when nothing is. ARP
 scan has no entry -- it's a synchronous one-shot request
 (`backend/tools/arp_scan.py`), not a background process, so there's no
-"still running elsewhere" state for it to report. Live-verified each
-status endpoint's shape directly (ping/mtr/ip-scan/port-scan/capture
-all return the `running` boolean the badge depends on); the actual
-rendered badge itself wasn't clicked through in a real browser (same
-gap as every other frontend addition this session -- no
-browser/display available in this environment).
+"still running elsewhere" state for it to report.
+
+First deploy had a real bug (user-reported): the badge kept pulsing
+and naming a finished task until the page was reloaded. Root cause was
+CSS, not JS -- `.active-tasks-badge { display: inline-flex }` as an
+*author* stylesheet rule always wins over the *user-agent* stylesheet's
+`[hidden] { display: none }` regardless of selector specificity
+(author-normal beats user-agent-normal in cascade order), so toggling
+the `hidden` attribute via JS had no visual effect at all once the
+badge had been shown once. Fixed with an explicit
+`.active-tasks-badge[hidden] { display: none }` override. Live-verified
+every status endpoint the badge polls returns the `running` boolean it
+depends on (ping/mtr/ip-scan/port-scan/capture/all three Modbus
+background tasks); the actual rendered badge itself wasn't clicked
+through in a real browser (same gap as every other frontend addition
+this session -- no browser/display available in this environment), so
+the CSS fix itself rests on understanding the cascade bug, not a
+visual re-test.
 
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
@@ -332,18 +353,17 @@ from before this date, that history no longer exists.
     disables autoconnect on every ethernet profile bound to eth0
     (including whatever the OS itself generated), so eth0 comes up with
     no IP and no L3 traffic at every boot (ARCHITECTURE.MD Rule 4).
-    `set_dhcp()`/`set_static()` also (re)establish a second routing
-    table (100) with a default route via `eth0`'s own gateway, selected
-    only by a policy rule matching "from `eth0`'s own address" --
-    `set_passive()` tears it down. Lets `ping.py`/`mtr.py`/
-    `tcp_test.py` (all three already bind their own traffic to that
-    address) reach targets beyond `eth0`'s own subnet through the test
-    network's own gateway, without the Pi's *system* default route ever
-    leaving `wlan0` (ARCHITECTURE.MD Rule 3, expanded 2026-08-22 --
-    user-reported: `ping` to `8.8.8.8` failed outright even with `eth0`
-    connected to a real gateway, since Rule 3 meant there was no route
-    *anywhere* for `eth0`-sourced traffic beyond its own subnet, not
-    just no *system default* route).
+    `_ensure_profile()` sets `ipv4.route-metric` well above `wlan0`'s
+    default, so `eth0` gets a real default route via its own gateway
+    when connected but stays deprioritized below `wlan0` whenever
+    `wlan0` has any route at all -- `eth0` only becomes "the" default
+    when `wlan0` has none (ARCHITECTURE.MD Rule 3 has the full history,
+    including a first attempt -- `ipv4.never-default` plus a second
+    routing table -- that was simpler to reason about in isolation but
+    didn't work for `mtr` and wouldn't have worked for real industrial
+    gear behind its own gateway either). `ping.py`/`mtr.py`/
+    `tcp_test.py` all bind their own traffic to `eth0`'s address, so in
+    practice they're the tools that actually exercise this route.
   - `GET /api/discovery/lldp` — passive LLDP neighbor discovery
     (`backend/discovery/lldp.py`): background thread runs `tcpdump`
     continuously, parses LLDP TLVs from its pcap stream, caches the
@@ -942,8 +962,33 @@ from before this date, that history no longer exists.
     gateway hop needed) works fine and shows a real hop with real RTT
     -- isolating this to `mtr` 0.95's own handling of `-a` combined
     with a non-default route via policy routing, not anything this
-    project's code controls. Documented as a Known gap rather than
-    chased further.
+    project's code controls.
+- eth0 diagnostic-tool routing, final approach (2026-08-22): the
+  maintainer pushed back on the policy-routing fix above as
+  unnecessarily complex, correctly anticipating it would hit the same
+  wall for real industrial gear (Siemens S7 PLCs) behind their own
+  gateway. Replaced with a single `ipv4.route-metric` override (see
+  Summary above). Live-verified after redeploying (again over the
+  `eth0`-backed SSH session, `wlan0` still in fallback-AP mode with no
+  route of its own):
+  - `nmcli -f ipv4.never-default,ipv4.route-metric connection show
+    lanpi-eth0` → `no`, `700`. `ip route show table main` → a real
+    `default via 192.168.88.1 dev eth0 ... metric 700` entry (`wlan0`
+    had none at the time, so this is correctly the effective default
+    right now -- the metric ordering vs. a connected `wlan0` wasn't
+    separately exercised live, since `wlan0` was in AP mode throughout
+    this whole session's testing).
+  - `ping.start("8.8.8.8", count=3)` → 3/3 received, ~6.7ms.
+    `tcp_test.test_port("8.8.8.8", 53)` → `open`, 22.4ms. Both matched
+    the earlier policy-routing results exactly, confirming the
+    simplification didn't regress either.
+  - **MTR now works**: `mtr.start("8.8.8.8", cycles=3)` produced a
+    full, correct 8-hop trace (`192.168.88.1` → ... → `8.8.8.8`, real
+    per-hop loss/RTT, zero unexpected timeouts) -- the exact case that
+    returned zero hops under the policy-routing approach. Confirms the
+    diagnosis: `mtr`'s own `-a` handling needed a route it could find
+    in the *main* table, not one reachable only through a separate
+    table selected by a policy rule.
 
 ## Known gaps
 
@@ -955,16 +1000,6 @@ PROFINET/S7 device's traffic, an actual Kamstrup meter's register
 values) against hardware that hasn't been available to test against
 yet -- see "Next steps" below for those.
 
-- MTR does not reach targets beyond `eth0`'s own subnet -- confirmed
-  via `tcpdump` that `mtr` itself sends zero probe packets in that
-  case, even with the exact same `eth0`-gateway routing table/policy
-  rule in place that lets Ping and TCP test reach the same targets
-  successfully (see the "eth0 diagnostic-tool routing fix" verification
-  entry above). Appears to be `mtr` 0.95's own handling of `-a`
-  (source-address bind) combined with a non-default route reached via
-  Linux policy routing, not something `mtr.py`'s invocation or this
-  project's routing setup controls. MTR against a target on `eth0`'s
-  own directly-connected subnet is unaffected and works normally.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
