@@ -86,6 +86,33 @@
     </section>
 
     <section class="card">
+      <h2>Link Event History</h2>
+      <p class="card-hint">
+        Logged whenever the TEST PORT's link state changes (up/down,
+        speed, duplex) -- polled every 2s independently of the RX/TX
+        counters above, so ordinary traffic never adds an entry.
+        Resets when the backend restarts.
+      </p>
+      <div class="table-scroll">
+        <table id="eth0-history-table" class="data-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Link</th>
+              <th>Speed</th>
+              <th>Duplex</th>
+            </tr>
+          </thead>
+          <tbody id="eth0-history-body"></tbody>
+        </table>
+      </div>
+      <p id="eth0-history-empty" class="card-hint"></p>
+      <div class="button-row">
+        <button id="eth0-history-reset-btn" type="button">Reset</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Neighbor (LLDP)</h2>
       <p class="card-hint">Link Layer Discovery Protocol -- vendor-neutral, used by most switches/routers.</p>
       <dl id="lldp">

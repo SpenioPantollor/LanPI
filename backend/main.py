@@ -9,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from backend.api.routes import TEST_PORT_INTERFACE, router as api_router
 from backend.capture import modbus_traffic, traffic_stats
 from backend.discovery import cdp, lldp, mndp
+from backend.network import link_history
 from backend.version import get_version
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -46,6 +47,7 @@ def _start_background_listeners() -> None:
     mndp.start_listener(TEST_PORT_INTERFACE)
     traffic_stats.start_listener(TEST_PORT_INTERFACE)
     modbus_traffic.start_listener(TEST_PORT_INTERFACE)
+    link_history.start_listener(TEST_PORT_INTERFACE)
 
 
 @app.exception_handler(StarletteHTTPException)

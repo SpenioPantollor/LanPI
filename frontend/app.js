@@ -188,6 +188,58 @@ async function loadEth0() {
   }
 }
 
+function formatLinkEvent(event) {
+  if (event.present === false) return "removed";
+  const up = event.link_detected === true || event.operstate === "UP";
+  return up ? "up" : "down";
+}
+
+async function loadEth0History() {
+  const bodyEl = document.getElementById("eth0-history-body");
+  const emptyEl = document.getElementById("eth0-history-empty");
+
+  try {
+    const res = await fetch("/api/network/eth0/history");
+    const history = await res.json();
+    const events = history.events || [];
+
+    bodyEl.innerHTML = "";
+    if (events.length === 0) {
+      emptyEl.textContent = "No link events recorded yet.";
+    } else {
+      emptyEl.textContent = "";
+      // Newest first -- the API returns oldest-first (append-only log).
+      for (const event of [...events].reverse()) {
+        const tr = document.createElement("tr");
+        const time = new Date(event.timestamp * 1000).toLocaleString(undefined, {
+          dateStyle: "medium",
+          timeStyle: "medium",
+        });
+        const linkText = formatLinkEvent(event);
+        tr.innerHTML = `
+          <td>${time}</td>
+          <td class="${linkText === "up" ? "link-up" : "link-down"}">${linkText}</td>
+          <td>${event.speed_mbps ? `${event.speed_mbps} Mbps` : "-"}</td>
+          <td>${event.duplex || "-"}</td>
+        `;
+        bodyEl.appendChild(tr);
+      }
+    }
+  } catch (err) {
+    emptyEl.textContent = "unreachable";
+  }
+}
+
+async function resetEth0History() {
+  if (!window.confirm("Reset link event history?")) return;
+  try {
+    await fetch("/api/network/eth0/history/reset", { method: "POST" });
+  } catch (err) {
+    // ignore, next load reflects actual state
+  }
+  loadEth0History();
+}
+
 async function loadEth0Mode() {
   const modeEl = document.getElementById("eth0-mode");
   const addressEl = document.getElementById("eth0-address");
@@ -842,6 +894,7 @@ function loadAll() {
   loadSystem();
   loadEth0();
   loadEth0Mode();
+  loadEth0History();
   loadLldp();
   loadCdp();
   loadMndp();
@@ -854,6 +907,7 @@ document.getElementById("eth0-passive-btn").addEventListener("click", () => setE
 document.getElementById("eth0-dhcp-btn").addEventListener("click", () => setEth0Mode("dhcp"));
 document.getElementById("eth0-static-btn").addEventListener("click", toggleEth0StaticForm);
 document.getElementById("eth0-static-form").addEventListener("submit", applyEth0Static);
+document.getElementById("eth0-history-reset-btn").addEventListener("click", resetEth0History);
 document.getElementById("ping-form").addEventListener("submit", startPing);
 document.getElementById("ping-stop-btn").addEventListener("click", stopPing);
 document.getElementById("arp-scan-form").addEventListener("submit", runArpScan);

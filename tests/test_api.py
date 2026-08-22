@@ -155,3 +155,13 @@ def test_modbus_traffic_get_and_reset():
     response = client.get("/api/tools/modbus/traffic")
     assert response.status_code == 200
     assert response.json() == {"relationships": []}
+
+
+def test_eth0_link_history_get_and_reset():
+    # Reset first -- module-level state, not test-order-independent
+    # otherwise, since test_link_history.py may have left events behind.
+    assert client.post("/api/network/eth0/history/reset").json()["ok"] is True
+
+    response = client.get("/api/network/eth0/history")
+    assert response.status_code == 200
+    assert response.json() == {"events": []}

@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.api.routes._shared import TEST_PORT_INTERFACE
-from backend.network import ap, eth0_mode, link, wifi
+from backend.network import ap, eth0_mode, link, link_history, wifi
 
 router = APIRouter(prefix="/network")
 
@@ -12,6 +12,16 @@ router = APIRouter(prefix="/network")
 @router.get("/eth0")
 def eth0_link() -> dict:
     return link.get_link_status(TEST_PORT_INTERFACE)
+
+
+@router.get("/eth0/history")
+def eth0_link_history() -> dict:
+    return link_history.get_history()
+
+
+@router.post("/eth0/history/reset")
+def eth0_link_history_reset() -> dict:
+    return link_history.reset()
 
 
 class Eth0ModeRequest(BaseModel):
