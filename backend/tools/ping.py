@@ -1,4 +1,5 @@
-"""ICMP ping via the system `ping` command.
+"""ICMP ping via the system `ping` command, sourced from the TEST PORT
+(eth0).
 
 Runs as a background process so the UI can show live results and stop
 it early, rather than blocking on a fixed count. `count` is optional:
@@ -11,6 +12,14 @@ summary line has been printed -- which happens when it finishes its
 count, or when stopped via SIGINT. That same final output also has an
 authoritative "rtt min/avg/max/mdev" line, which overwrites the
 live-computed min/avg/max with ping's own (more precise) numbers.
+
+Sourced from eth0's current address (via `-I`), same reasoning as
+mtr.py/tcp_test.py: eth0 has no default route by design, so an unbound
+ping to a host outside eth0's local subnet would silently go out
+wlan0 instead. Requires DHCP/Static mode -- Passive has no source
+address to bind. (This was previously missing here -- ping was the one
+tool not actually doing what README already documented for "every
+active tool", user-reported 2026-08-22.)
 """
 
 from __future__ import annotations
@@ -21,6 +30,7 @@ import subprocess
 import threading
 
 from backend import shell
+from backend.network import eth0_mode
 
 _PING_CANDIDATES = ["/bin/ping", "/usr/bin/ping", "ping"]
 _REPLY_RE = re.compile(r"icmp_seq=(\d+) ttl=(\d+) time=([\d.]+) ms")
@@ -48,6 +58,12 @@ _state = {
 
 def _find_ping() -> str | None:
     return shell.find_binary(_PING_CANDIDATES)
+
+
+def _eth0_source_ip() -> str | None:
+    mode = eth0_mode.get_mode()
+    address = mode.get("address")
+    return address.split("/")[0] if address else None
 
 
 def _reader_loop(process: subprocess.Popen, host: str) -> None:
@@ -99,7 +115,15 @@ def start(host: str, count: int | None = None) -> dict:
     if not ping_bin:
         return {"ok": False, "message": "ping not available"}
 
-    args = [ping_bin]
+    source_ip = _eth0_source_ip()
+    if not source_ip:
+        return {
+            "ok": False,
+            "message": "eth0 has no IP address -- switch to DHCP or Static mode first "
+                       "(Passive mode has no source address to ping from)",
+        }
+
+    args = [ping_bin, "-I", source_ip]
     if count:
         args += ["-c", str(count)]
     args.append(host)

@@ -19,10 +19,61 @@ from backend import shell
 CONNECTION_NAME = "lanpi-eth0"
 _INTERFACE = "eth0"
 _NMCLI_CANDIDATES = ["/usr/bin/nmcli", "/bin/nmcli", "nmcli"]
+_IP_CANDIDATES = ["/usr/sbin/ip", "/sbin/ip", "/usr/bin/ip", "/bin/ip", "ip"]
+
+# Separate routing table (and matching policy rule) for traffic
+# explicitly sourced from eth0's own address -- see _apply_test_route.
+_TEST_ROUTE_TABLE = "100"
+_TEST_RULE_PRIORITY = "100"
 
 
 def _find_nmcli() -> str | None:
     return shell.find_binary(_NMCLI_CANDIDATES)
+
+
+def _find_ip() -> str | None:
+    return shell.find_binary(_IP_CANDIDATES)
+
+
+def _apply_test_route(address: str, gateway: str) -> None:
+    """Lets ping.py/mtr.py/tcp_test.py -- all three already bind their
+    traffic to eth0's own address -- reach targets beyond eth0's own
+    subnet through the test network's own gateway, without touching
+    the Pi's *system* default route (still exclusively wlan0's, per
+    Rule 3/ipv4.never-default above): a second routing table, selected
+    only by a policy rule matching "from <eth0's address>". Nothing
+    else on the Pi sources traffic from that address, so nothing else
+    can be affected -- SSH/git/apt/NTP/etc. keep using the main table
+    (wlan0) exactly as before.
+
+    Without a gateway (static mode with none set, or a DHCP segment
+    that doesn't offer one) there's nothing to route through beyond
+    eth0's own subnet, same as before this existed -- just clears any
+    previous table/rule instead.
+    """
+    ip_bin = _find_ip()
+    if not ip_bin:
+        return
+    if not gateway:
+        _clear_test_route()
+        return
+    shell.run_privileged([ip_bin, "route", "replace", "default", "via", gateway,
+                           "dev", _INTERFACE, "table", _TEST_ROUTE_TABLE])
+    # Delete-then-add rather than a plain add: re-running this (mode
+    # switched again, or DHCP handed back a different address) with the
+    # same priority but a different "from" address would otherwise
+    # leave two rules stacked instead of replacing the stale one.
+    shell.run_privileged([ip_bin, "rule", "del", "priority", _TEST_RULE_PRIORITY])
+    shell.run_privileged([ip_bin, "rule", "add", "from", address,
+                           "table", _TEST_ROUTE_TABLE, "priority", _TEST_RULE_PRIORITY])
+
+
+def _clear_test_route() -> None:
+    ip_bin = _find_ip()
+    if not ip_bin:
+        return
+    shell.run_privileged([ip_bin, "route", "flush", "table", _TEST_ROUTE_TABLE])
+    shell.run_privileged([ip_bin, "rule", "del", "priority", _TEST_RULE_PRIORITY])
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess | None:
@@ -159,6 +210,7 @@ def set_passive() -> dict:
     # that's already the desired state, not a failure.
     if result.returncode != 0 and "not active" not in (result.stderr or ""):
         return {"ok": False, "message": result.stderr.strip()}
+    _clear_test_route()
     return {"ok": True, "message": "eth0 set to passive mode"}
 
 
@@ -180,6 +232,10 @@ def set_dhcp() -> dict:
     if result is None or result.returncode != 0:
         message = result.stderr.strip() if result else "nmcli/sudo not available"
         return {"ok": False, "message": message}
+    mode = get_mode()
+    address = mode.get("address")
+    if address:
+        _apply_test_route(address.split("/")[0], mode.get("gateway"))
     return {"ok": True, "message": "eth0 set to DHCP mode"}
 
 
@@ -203,4 +259,5 @@ def set_static(address: str, gateway: str = "", dns: str = "") -> dict:
     if result is None or result.returncode != 0:
         message = result.stderr.strip() if result else "nmcli/sudo not available"
         return {"ok": False, "message": message}
+    _apply_test_route(address.split("/")[0], gateway)
     return {"ok": True, "message": "eth0 set to static mode"}
