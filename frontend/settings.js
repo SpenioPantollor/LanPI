@@ -5,6 +5,7 @@ async function loadWifiStatus() {
   const scanActionsEl = document.getElementById("wifi-scan-actions");
   const scanHintEl = document.getElementById("wifi-scan-ap-hint");
   const scanResultsEl = document.getElementById("wifi-networks");
+  const retryActionsEl = document.getElementById("wifi-retry-actions");
 
   try {
     const res = await fetch("/api/network/wifi");
@@ -28,6 +29,7 @@ async function loadWifiStatus() {
     const isAp = wifi.mode === "ap";
     scanActionsEl.hidden = isAp;
     scanHintEl.hidden = !isAp;
+    retryActionsEl.hidden = !isAp;
     if (isAp) {
       scanResultsEl.innerHTML = "";
     }
@@ -96,6 +98,29 @@ async function scanWifi() {
     scanBtn.disabled = false;
     scanBtn.textContent = "Scan networks";
   }
+}
+
+async function retryKnownNetworks() {
+  const btn = document.getElementById("wifi-retry-btn");
+  const statusEl = document.getElementById("wifi-retry-status");
+  btn.disabled = true;
+  statusEl.textContent = "Retrying (up to 10s)...";
+
+  try {
+    const res = await fetch("/api/network/wifi/retry-known", { method: "POST" });
+    const result = await res.json();
+    statusEl.textContent = result.message || (result.ok ? "Done." : "Failed.");
+  } catch (err) {
+    // Expected if this session is itself riding on the fallback AP --
+    // it just dropped mid-request. loadWifiStatus() below (once
+    // reachable again, whether reconnected or the AP came back) shows
+    // the real outcome either way.
+    statusEl.textContent = "Connection interrupted -- checking current status...";
+  }
+
+  btn.disabled = false;
+  loadWifiStatus();
+  loadSavedNetworks();
 }
 
 async function connectWifi(ssid, secured) {
@@ -236,6 +261,7 @@ function loadAll() {
 }
 
 document.getElementById("wifi-scan-btn").addEventListener("click", scanWifi);
+document.getElementById("wifi-retry-btn").addEventListener("click", retryKnownNetworks);
 document.getElementById("wifi-add-form").addEventListener("submit", addKnownNetwork);
 document.getElementById("ap-form").addEventListener("submit", saveApConfig);
 

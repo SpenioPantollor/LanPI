@@ -81,9 +81,20 @@
       <p id="wifi-scan-ap-hint" class="card-hint" hidden>
         Fallback AP is active -- this Pi has a single Wi-Fi radio, so it
         can't scan for other networks while broadcasting its own. Use
-        "Add known network" below instead: it saves the credentials and
-        switches over automatically, no scan needed.
+        "Add known network" below for a new one, or try an
+        already-saved network with the button below.
       </p>
+      <div id="wifi-retry-actions" class="wifi-actions" hidden>
+        <button id="wifi-retry-btn" type="button">Retry known networks</button>
+        <p class="card-hint">
+          Briefly turns the fallback AP off to check -- restores it
+          automatically if nothing known is in range within 10s. If
+          you're viewing this page through the fallback AP right now,
+          this disconnects your own session (reconnects it automatically
+          if the retry fails and the AP comes back).
+        </p>
+        <p id="wifi-retry-status" class="card-hint"></p>
+      </div>
       <div id="wifi-scan-actions" class="wifi-actions">
         <button id="wifi-scan-btn" type="button">Scan networks</button>
       </div>

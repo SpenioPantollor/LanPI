@@ -197,6 +197,34 @@ this session -- no browser/display available in this environment), so
 the CSS fix itself rests on understanding the cascade bug, not a
 visual re-test.
 
+**Manual "Retry known networks" action added for the fallback AP
+(2026-08-22)**, user-requested after a real Wi-Fi drop (`Pypas` went
+`ssid-not-found` mid-session, triggering the fallback AP exactly as
+designed -- see the routing/AP investigation above). The AP monitor is
+deliberately one-directional (never auto-tears-down when a known
+network comes back into range, since checking would mean interrupting
+the AP on a schedule regardless of whether it's likely to help) -- this
+adds a user-triggered alternative instead of an automatic periodic one.
+`wifi.retry_known()` (`backend/network/wifi.py`, `POST /api/network/
+wifi/retry-known`): if the AP is active, tears it down (handing wlan0
+back to NetworkManager, which auto-connects to any visible
+`autoconnect=yes` profile on its own -- no explicit target SSID needed,
+unlike `add_known()`), polls for up to 10s, and restores the AP
+automatically if nothing connects -- same "don't strand the device"
+shape as `add_known()`'s existing AP-interrupting path. Settings page:
+a new "Retry known networks" button appears (next to the existing
+Scan-hidden-while-AP-active hint) only while the AP is active, with a
+status line and an explicit warning that clicking it while viewing the
+page *through* the fallback AP will disconnect that very session
+(recovers on its own either way -- reconnected to the real network, or
+the AP restored). 4 new tests (`tests/test_wifi.py`) cover
+`retry_known()`'s branching via monkeypatched `ap.is_active()`/
+`deactivate()`/`activate()` and `get_status()` -- this module had zero
+test coverage before (matches the rest of `wifi.py`: relies on live
+verification, no real `nmcli`/`wlan0` to test against in this
+environment). **Not yet live-tested** -- needs a real fallback-AP
+session to click through.
+
 **S7 traffic-classifier false positive found and fixed (2026-08-22)**,
 user-noticed: the Traffic page showed `s7: 1` against the MikroTik
 router's IP, which read as suspicious ("S7 traffic leaking out of a

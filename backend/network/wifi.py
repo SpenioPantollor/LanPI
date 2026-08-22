@@ -246,6 +246,46 @@ def add_known(ssid: str, password: str | None = None) -> dict:
     return {"ok": True, "message": f"{message}, connected"}
 
 
+def retry_known(wait_seconds: float = 10.0) -> dict:
+    """Manually retry connecting to any already-saved network now, if
+    the fallback AP currently owns wlan0.
+
+    User-triggered counterpart to add_known()'s auto-switch: for the
+    case where a *previously* known network (not a new one) has come
+    back into range -- e.g. the router that dropped out came back
+    online -- but nothing brings the AP down automatically to check
+    (single Wi-Fi radio; the AP monitor is deliberately one-directional,
+    see STATUS.md 2026-08-22). Tears the AP down (handing wlan0 back to
+    NetworkManager, which auto-connects to any visible autoconnect=yes
+    profile on its own -- no explicit `connection up` needed here,
+    unlike add_known() which targets one specific just-saved SSID),
+    waits up to wait_seconds for a client connection to come up, and
+    restores the AP automatically if none does, so a still-out-of-range
+    network doesn't strand the device with no way back to the
+    dashboard.
+    """
+    if not ap.is_active():
+        return {"ok": False, "message": "fallback AP is not active"}
+
+    down = ap.deactivate()
+    if not down.get("ok"):
+        return {"ok": False, "message": f"could not leave fallback AP mode: {down.get('message')}"}
+
+    deadline = time.monotonic() + wait_seconds
+    status = get_status()
+    while time.monotonic() < deadline:
+        status = get_status()
+        if status.get("mode") == "client" and status.get("connected"):
+            return {"ok": True, "message": f"connected to {status.get('ssid')}"}
+        time.sleep(1)
+
+    ap.activate()
+    return {
+        "ok": True,
+        "message": f"no known network found within {int(wait_seconds)}s -- fallback AP restored",
+    }
+
+
 def forget(name: str) -> dict:
     """Delete a saved Wi-Fi connection profile, by its connection name
     (see list_saved -- this is `name`, not necessarily the SSID)."""

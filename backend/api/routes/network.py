@@ -107,6 +107,11 @@ def wifi_forget(body: WifiForgetRequest) -> dict:
     return wifi.forget(body.name)
 
 
+@router.post("/wifi/retry-known")
+def wifi_retry_known() -> dict:
+    return wifi.retry_known()
+
+
 class ApConfigRequest(BaseModel):
     ssid: str
     password: Optional[str] = None
