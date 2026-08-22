@@ -537,12 +537,20 @@ Not implemented yet. See `STATUS.md` for day-to-day progress and
 `ARCHITECTURE.MD` for the longer-term plan and past decisions behind
 these.
 
-**Industrial protocols** (deliberately deferred until real PLC
-hardware is available to test against):
+**Industrial protocols** (deliberately deferred until real hardware is
+available to test against):
 
 * PROFINET DCP discovery and traffic detection
 * Siemens S7 diagnostics
 * Industrial device identification
+* BACnet (building automation) -- discovery/traffic detection, needs a
+  real BACnet device (BMS controller, field device) to test against
+* MQTT -- passive broker/topic detection at minimum, possibly a
+  read-only subscribe/inspect tool later; increasingly common for
+  industrial telemetry alongside the more classical fieldbus protocols
+  above
+* EtherNet/IP (CIP) -- Rockwell/Allen-Bradley's industrial protocol,
+  needs real PLC hardware like PROFINET/S7 above
 
 **General diagnostics:**
 
