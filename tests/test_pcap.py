@@ -81,6 +81,24 @@ def test_stop_ends_the_session_without_further_rotation(tmp_path, monkeypatch):
     assert len(list(tmp_path.glob("*.pcap"))) == count_at_stop  # no further parts appear
 
 
+def test_elapsed_seconds_resets_to_none_after_stop(tmp_path, monkeypatch):
+    # Regression: started_at previously wasn't cleared when a session
+    # ended, so elapsed_seconds kept growing forever from the old start
+    # time even though running had correctly flipped to False --
+    # user-reported (2026-08-22) as "capture card looks stuck: elapsed
+    # keeps climbing but status says idle."
+    pcap.start("eth0")
+    assert _wait_until(lambda: pcap.status()["elapsed_seconds"] is not None)
+
+    pcap.stop()
+    assert _wait_until(lambda: pcap.status()["running"] is False)
+
+    status = pcap.status()
+    assert status["elapsed_seconds"] is None
+    time.sleep(0.3)
+    assert pcap.status()["elapsed_seconds"] is None  # doesn't start climbing again on its own
+
+
 def test_prune_oldest_deletes_lowest_mtime_files_first(tmp_path, monkeypatch):
     monkeypatch.setattr(pcap, "_MAX_TOTAL_BYTES", 1000)
     for i in range(5):

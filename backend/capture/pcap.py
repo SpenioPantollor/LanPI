@@ -160,6 +160,7 @@ def _session_loop(
             if finishing:
                 _state["running"] = False
                 _state["process"] = None
+                _state["started_at"] = None
                 return
 
         part += 1
@@ -177,6 +178,7 @@ def _session_loop(
             if process is None:
                 _state["running"] = False
                 _state["process"] = None
+                _state["started_at"] = None
                 return
             _state.update({"filename": filename, "part": part, "process": process})
 
