@@ -197,6 +197,36 @@ this session -- no browser/display available in this environment), so
 the CSS fix itself rests on understanding the cascade bug, not a
 visual re-test.
 
+**Selectable Windows 98/95-style theme added (2026-08-22)**, per a
+maintainer request: an optional visual theme alongside the existing
+dark theme, which stays the default. `frontend/theme.css` layers
+`[data-theme="win98"]`-scoped rules on top of `style.css` (never
+edits the defaults) -- classic beveled 3D borders (outset for
+windows/buttons/tabs, inset for inputs/listbox-style rows), a navy
+titlebar gradient on each card's `<h2>`, a teal desktop background,
+and a Tahoma/MS Sans Serif font stack. Every page already used CSS
+custom properties (`--bg`/`--surface`/`--accent`/etc.) for color, so
+the theme mostly rides that existing seam; the beveled-border look
+itself needed dedicated non-variable rules since raised/sunken edges
+aren't expressible as a color swap. `frontend/theme.js` (included on
+every page, same pattern as `active-tasks.js`) applies the saved
+choice from `localStorage` (`lanpi-theme`) and wires the new
+`#theme-select` dropdown on the Settings page's new "Appearance"
+card -- the only place the switch lives, applied site-wide via
+`localStorage`. A tiny inline script duplicated in every page's
+`<head>` (before `style.css` loads) sets the `data-theme` attribute
+synchronously, so navigating between pages with Win98 selected
+doesn't flash the dark theme first. Also added a base (non-form-
+scoped) `select` style to `style.css` -- Modbus's several `<select>`
+elements had no styling at all before this (an existing gap, not
+something this change caused), and the new theme picker isn't inside
+a `<form>`. **Not tested in a real browser** -- no browser/display
+available in this environment, same limitation as every other
+frontend change this session; the CSS/JS is correct by inspection
+(variable scoping, `localStorage` try/catch, no ID collisions with
+existing pages) but the actual rendered look hasn't been visually
+confirmed.
+
 **V0.2.3 (foundation hardening) complete as of 2026-08-21**, per a
 maintainer-provided refactoring brief: the goal was making the
 existing V0.1/V0.2 code more robust before building further

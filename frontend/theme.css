@@ -1,0 +1,104 @@
+/* Windows 98/95-style theme, opt-in via [data-theme="win98"] on <html>
+   (set by the inline anti-flash snippet in each page's <head> plus
+   theme.js). The default (no attribute) is untouched -- every rule
+   here is scoped under the attribute selector, layered on top of
+   style.css rather than replacing it. */
+
+:root[data-theme="win98"] {
+  color-scheme: light;
+  --bg: #008080;
+  --surface: #c0c0c0;
+  --border: #808080;
+  --text: #000000;
+  --text-dim: #3a3a3a;
+  --accent: #000080;
+  --warn: #aa0000;
+  --win-face: #c0c0c0;
+  --win-light: #ffffff;
+  --win-shadow: #808080;
+  --win-dark: #000000;
+}
+
+[data-theme="win98"] body {
+  background: var(--bg);
+  font-family: Tahoma, "MS Sans Serif", Geneva, Arial, sans-serif;
+}
+
+[data-theme="win98"] .card,
+[data-theme="win98"] nav a,
+[data-theme="win98"] .tabs button,
+[data-theme="win98"] button,
+[data-theme="win98"] form input,
+[data-theme="win98"] select,
+[data-theme="win98"] .active-tasks-badge,
+[data-theme="win98"] .wifi-list li,
+[data-theme="win98"] .raw-view pre,
+[data-theme="win98"] .progress-bar,
+[data-theme="win98"] .progress-bar-fill {
+  border-radius: 0;
+}
+
+/* Raised (outset) bevel -- windows, buttons, tabs, badges */
+[data-theme="win98"] .card,
+[data-theme="win98"] nav a,
+[data-theme="win98"] .tabs button,
+[data-theme="win98"] button:not(:disabled),
+[data-theme="win98"] .active-tasks-badge {
+  background: var(--win-face);
+  border: 2px solid;
+  border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+  box-shadow: inset -1px -1px 0 var(--win-shadow), inset 1px 1px 0 #dfdfdf;
+  color: var(--text);
+}
+
+/* Sunken (inset) bevel -- text inputs, listbox-style rows, code blocks */
+[data-theme="win98"] form input,
+[data-theme="win98"] select,
+[data-theme="win98"] .raw-view pre,
+[data-theme="win98"] .wifi-list li,
+[data-theme="win98"] .progress-bar {
+  background: var(--win-light);
+  border: 2px solid;
+  border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
+  box-shadow: inset 1px 1px 0 var(--win-shadow);
+}
+
+[data-theme="win98"] .card h2 {
+  margin: -1.25rem -1.5rem 0.75rem;
+  padding: 0.35rem 0.6rem;
+  background: linear-gradient(90deg, var(--accent), #1084d0);
+  color: #ffffff;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: bold;
+}
+
+[data-theme="win98"] nav a.active,
+[data-theme="win98"] .tabs button.active,
+[data-theme="win98"] button:active:not(:disabled) {
+  border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
+  box-shadow: inset 1px 1px 0 var(--win-shadow);
+  background: var(--win-face);
+  color: var(--text);
+}
+
+[data-theme="win98"] .data-table th {
+  background: var(--win-face);
+  border: 1px solid;
+  border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+  text-transform: none;
+  color: var(--text);
+}
+
+[data-theme="win98"] .data-table td {
+  border-bottom: 1px solid var(--win-shadow);
+}
+
+[data-theme="win98"] .progress-bar-fill {
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 8px);
+}
+
+[data-theme="win98"] ::selection {
+  background: var(--accent);
+  color: #ffffff;
+}

@@ -491,7 +491,8 @@ form label {
   color: var(--text-dim);
 }
 
-form input {
+form input,
+select {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -501,7 +502,8 @@ form input {
   margin-bottom: 0.5rem;
 }
 
-form input:focus {
+form input:focus,
+select:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
