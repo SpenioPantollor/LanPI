@@ -476,10 +476,11 @@ supported, since Wi-Fi/eth0 management goes through `nmcli`.
    `sudo raspi-config` after first boot.
 
 2. SSH into the Pi and clone this repository (it's private, so make
-   sure a deploy key or your own SSH key is set up on the Pi first):
+   sure you're authenticated -- e.g. `gh auth login`, or a personal
+   access token when prompted for a password):
 
    ```bash
-   git clone <this-repo-url> ~/lanpi
+   git clone https://github.com/SpenioPantollor/LanPI.git ~/lanpi
    cd ~/lanpi
    ```
 
