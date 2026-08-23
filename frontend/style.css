@@ -225,6 +225,15 @@ dl[hidden] {
   display: none;
 }
 
+/* Visual cue that a term has a native title-attribute tooltip
+   (currently just the Link Quality dt's, 2026-08-22) -- otherwise
+   there's nothing to suggest hovering does anything. */
+dt[title] {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
 dt {
   color: var(--text-dim);
 }

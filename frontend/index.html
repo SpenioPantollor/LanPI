@@ -85,15 +85,15 @@
         before the link actually drops.
       </p>
       <dl id="eth0-phy-quality" hidden>
-        <dt>Local Rcvr Not-OK</dt>
+        <dt title="During 1000BASE-T link training, both ends continuously exchange signals to synchronize. This counts how many times THIS Pi's own receiver judged the incoming signal (from the cable / far end) not clean enough -- an incoming-signal quality problem.">Local Rcvr Not-OK</dt>
         <dd id="eth0-phy-local-rcvr-nok">-</dd>
-        <dt>Remote Rcvr Not-OK</dt>
+        <dt title="The mirror of Local Rcvr Not-OK: the far end (switch/device) reported it isn't getting a clean signal from what this Pi transmits -- an outgoing-signal quality problem.">Remote Rcvr Not-OK</dt>
         <dd id="eth0-phy-remote-rcvr-nok">-</dd>
-        <dt>SerDes BER Errors</dt>
+        <dt title="SerDes = the internal circuit that converts data to/from the electrical signal on the wire. BER = bit error rate. Rising counts mean the electrical signal itself is degrading (cable, connector, EMI).">SerDes BER Errors</dt>
         <dd id="eth0-phy-serdes-ber">-</dd>
-        <dt>False Carrier Errors</dt>
+        <dt title="The PHY detected what looked like the start of a real Ethernet frame, but it turned out to be noise, not an actual frame -- a classic sign of electrical interference on the line.">False Carrier Errors</dt>
         <dd id="eth0-phy-false-carrier">-</dd>
-        <dt>PHY Receive Errors</dt>
+        <dt title="General physical-layer receive error count -- broader and less specific than the counters above, but another overall health signal.">PHY Receive Errors</dt>
         <dd id="eth0-phy-receive-errors">-</dd>
       </dl>
 
