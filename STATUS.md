@@ -830,8 +830,15 @@ from before this date, that history no longer exists.
   supported** on the Pi 3 in use -- `ethtool --cable-test eth0` returns
   "PHY driver does not support cable testing" (`ethtool -i eth0` shows
   `driver: smsc95xx`, a USB-attached adapter, not a native PHY). Not
-  implemented; see README.md Cable Diagnostics section for the Pi 4
-  caveat (plausible but unconfirmed without testing on one).
+  implemented. **Re-checked on a real Pi 4 (2026-08-22)**: the earlier
+  "plausible but unconfirmed" caveat is now resolved -- also not
+  supported, same exact error, despite the Pi 4 having a real Gigabit
+  PHY (`bcmgenet` driver, Broadcom BCM54213PE, RGMII-attached, not a
+  USB adapter). A genuinely different board/chip than the Pi 3's USB
+  adapter, but the kernel's PHY driver for it still doesn't implement
+  the `cable_test_start`/`cable_test_get_status` callbacks `ethtool
+  --cable-test` needs -- a driver-level gap, not a hardware one. See
+  README.md Cable Diagnostics section.
 - TCP port test (`backend/tools/tcp_test.py`, `POST /api/tools/tcp-test`):
   **fully confirmed working** -- binds the outbound socket to eth0's
   current address before connecting (not just any outbound socket),

@@ -125,25 +125,28 @@ entry. Bounded to the most recent 500 events; resets when the backend
 restarts. Live-verified against a real cable pull/replug (see
 `STATUS.md`).
 
-### Cable Diagnostics (not supported on the current development hardware)
+### Cable Diagnostics (not supported on either development board)
 
 TDR (Time Domain Reflectometry) wire-pair quality and cable-length
 estimation, via `ethtool --cable-test`, when the Ethernet PHY supports
-it. **Checked against the actual Pi 3 in use: not supported** --
-`ethtool --cable-test eth0` returns "PHY driver does not support
-cable testing". The Pi 3's Ethernet is a USB-attached `smsc95xx`
-adapter, not a native PHY with TDR circuitry, so there's no path to
-this feature on this specific board.
+it. **Checked against both a Pi 3 and a Pi 4, neither supports it**:
 
-Raspberry Pi 4 is a more plausible candidate -- it has a real Gigabit
-PHY (Broadcom BCM54213PE) instead of a USB-attached adapter -- but
-that alone doesn't confirm cable-test support: the Linux kernel's PHY
-driver for that specific chip also has to implement the
-`cable_test_start`/`cable_test_get_status` callbacks ethtool's
-cable-test command relies on, and that hasn't been checked against
-real Pi 4 hardware. Don't assume it works there either without
-actually running `ethtool --cable-test eth0` on one. Not planned for
-any version until confirmed on hardware that's actually been tested.
+* Pi 3: `ethtool --cable-test eth0` returns "PHY driver does not
+  support cable testing". Its Ethernet is a USB-attached `smsc95xx`
+  adapter, not a native PHY with TDR circuitry, so there's no path to
+  this feature on this board at all.
+* Pi 4 (confirmed 2026-08-22): has a real Gigabit PHY (Broadcom
+  BCM54213PE, driver `bcmgenet`, RGMII-attached -- not a USB adapter),
+  so it was a genuinely plausible candidate. Still fails the same way:
+  `ethtool --cable-test eth0` returns the identical "PHY driver does
+  not support cable testing" error. The chip itself may well have TDR
+  circuitry, but the Linux kernel's PHY driver for it doesn't
+  implement the `cable_test_start`/`cable_test_get_status` callbacks
+  ethtool's cable-test command needs -- a kernel/driver-level gap, not
+  a hardware one.
+
+Not planned for any version unless a board with actual kernel-level
+cable-test support turns up.
 
 ### IP Configuration (`eth0`)
 
