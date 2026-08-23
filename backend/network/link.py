@@ -14,6 +14,27 @@ _SPEED_RE = re.compile(r"Speed:\s*(\d+)Mb/s")
 _DUPLEX_RE = re.compile(r"Duplex:\s*(Full|Half)", re.IGNORECASE)
 _AUTONEG_RE = re.compile(r"Auto-negotiation:\s*(on|off)", re.IGNORECASE)
 _LINK_DETECTED_RE = re.compile(r"Link detected:\s*(yes|no)", re.IGNORECASE)
+_PHY_STAT_LINE_RE = re.compile(r"^\s*(\w+):\s*(-?\d+)\s*$")
+
+# PHY-level link-training/signal-quality counters (ethtool --phy-statistics),
+# not a full cable test -- Linux's Broadcom PHY driver never wires up
+# cable_test_start/cable_test_get_status for the BCM54213PE used on the Pi
+# 4 (a community attempt to patch it in hung indefinitely on a disconnected
+# cable, never upstreamed -- see README's Cable Diagnostics section), but
+# these counters are a real, working, no-patch-needed proxy: local_rcvr_nok/
+# remote_rcv_nok come from 1000BASE-T's own link-training handshake and rise
+# on a marginal/degrading cable *before* the link actually drops. Only
+# whichever keys the driver actually reports are included -- coverage
+# varies by NIC/PHY driver (confirmed present on the Pi 4's bcmgenet/
+# BCM54213PE; not checked against the Pi 3's USB smsc95xx adapter).
+_PHY_STAT_KEYS = {
+    "phy_receive_errors",
+    "phy_serdes_ber_errors",
+    "phy_false_carrier_sense_errors",
+    "phy_local_rcvr_nok",
+    "phy_remote_rcv_nok",
+    "phy_lpi_count",
+}
 
 
 def _run(cmd: list[str]) -> str:
@@ -60,9 +81,28 @@ def _get_ethtool_info(interface: str) -> dict:
     return info
 
 
+def _get_phy_statistics(interface: str) -> dict:
+    """PHY-level counters (see _PHY_STAT_KEYS above) -- returns only
+    whatever keys the driver actually reports, {} if the interface's
+    PHY driver doesn't support --phy-statistics at all (e.g. the Pi 3's
+    USB smsc95xx adapter) rather than a dict of nulls, so the frontend
+    can tell "not supported here" apart from "supported, all zero"."""
+    ethtool_bin = shell.find_binary(_ETHTOOL_CANDIDATES)
+    if not ethtool_bin:
+        return {}
+    output = _run([ethtool_bin, "--phy-statistics", interface])
+    stats = {}
+    for line in output.splitlines():
+        match = _PHY_STAT_LINE_RE.match(line)
+        if match and match.group(1) in _PHY_STAT_KEYS:
+            stats[match.group(1)] = int(match.group(2))
+    return stats
+
+
 def get_link_status(interface: str = "eth0") -> dict:
     link_info = _get_ip_link_info(interface)
     ethtool_info = _get_ethtool_info(interface)
+    phy_stats = _get_phy_statistics(interface)
 
     stats = link_info.get("stats64", {})
     rx = stats.get("rx", {})
@@ -86,4 +126,5 @@ def get_link_status(interface: str = "eth0") -> dict:
         "tx_packets": tx.get("packets"),
         "tx_errors": tx.get("errors"),
         "tx_dropped": tx.get("dropped"),
+        "phy_statistics": phy_stats,
     }

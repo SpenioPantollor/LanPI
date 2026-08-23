@@ -76,6 +76,27 @@
         <dd id="eth0-errors">-</dd>
       </dl>
 
+      <h3 id="eth0-phy-quality-heading" hidden>Link Quality</h3>
+      <p id="eth0-phy-quality-hint" class="card-hint" hidden>
+        PHY-level counters from <code>ethtool --phy-statistics</code> --
+        a working proxy for cable/signal quality (full TDR cable
+        testing isn't supported by this board's PHY driver). Rising
+        receiver-not-OK or error counts can indicate a marginal cable
+        before the link actually drops.
+      </p>
+      <dl id="eth0-phy-quality" hidden>
+        <dt>Local Rcvr Not-OK</dt>
+        <dd id="eth0-phy-local-rcvr-nok">-</dd>
+        <dt>Remote Rcvr Not-OK</dt>
+        <dd id="eth0-phy-remote-rcvr-nok">-</dd>
+        <dt>SerDes BER Errors</dt>
+        <dd id="eth0-phy-serdes-ber">-</dd>
+        <dt>False Carrier Errors</dt>
+        <dd id="eth0-phy-false-carrier">-</dd>
+        <dt>PHY Receive Errors</dt>
+        <dd id="eth0-phy-receive-errors">-</dd>
+      </dl>
+
       <h3>IP Configuration</h3>
       <dl id="eth0-ip">
         <dt>Mode</dt>

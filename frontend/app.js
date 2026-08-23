@@ -159,6 +159,9 @@ async function loadEth0() {
   const rxEl = document.getElementById("eth0-rx");
   const txEl = document.getElementById("eth0-tx");
   const errorsEl = document.getElementById("eth0-errors");
+  const phyQualityHeadingEl = document.getElementById("eth0-phy-quality-heading");
+  const phyQualityHintEl = document.getElementById("eth0-phy-quality-hint");
+  const phyQualityEl = document.getElementById("eth0-phy-quality");
 
   try {
     const res = await fetch("/api/network/eth0");
@@ -182,6 +185,24 @@ async function loadEth0() {
     rxEl.textContent = `${formatBytes(eth0.rx_bytes)} (${eth0.rx_packets ?? "-"} pkts)`;
     txEl.textContent = `${formatBytes(eth0.tx_bytes)} (${eth0.tx_packets ?? "-"} pkts)`;
     errorsEl.textContent = `${eth0.rx_errors ?? "-"} / ${eth0.rx_dropped ?? "-"}`;
+
+    const phyStats = eth0.phy_statistics || {};
+    const hasPhyStats = Object.keys(phyStats).length > 0;
+    phyQualityHeadingEl.hidden = !hasPhyStats;
+    phyQualityHintEl.hidden = !hasPhyStats;
+    phyQualityEl.hidden = !hasPhyStats;
+    if (hasPhyStats) {
+      document.getElementById("eth0-phy-local-rcvr-nok").textContent =
+        phyStats.phy_local_rcvr_nok ?? "-";
+      document.getElementById("eth0-phy-remote-rcvr-nok").textContent =
+        phyStats.phy_remote_rcv_nok ?? "-";
+      document.getElementById("eth0-phy-serdes-ber").textContent =
+        phyStats.phy_serdes_ber_errors ?? "-";
+      document.getElementById("eth0-phy-false-carrier").textContent =
+        phyStats.phy_false_carrier_sense_errors ?? "-";
+      document.getElementById("eth0-phy-receive-errors").textContent =
+        phyStats.phy_receive_errors ?? "-";
+    }
   } catch (err) {
     linkEl.textContent = "unreachable";
     linkEl.className = "";

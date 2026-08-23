@@ -146,7 +146,25 @@ it. **Checked against both a Pi 3 and a Pi 4, neither supports it**:
   a hardware one.
 
 Not planned for any version unless a board with actual kernel-level
-cable-test support turns up.
+cable-test support turns up. (A community patch exists that wires the
+BCM54140's cable-test callbacks onto the BCM54213PE too, since they
+share the same underlying register-access library -- but it's
+unreliable: works when the far end is a live switch, hangs
+indefinitely on a disconnected cable, which is the case that matters
+most. Never upstreamed, both discussion threads are dead-ended. Not
+worth carrying as an out-of-tree kernel patch for that reliability
+gap.)
+
+**What's implemented instead**: `ethtool --phy-statistics` works today
+on the Pi 4's PHY, no patch needed, and reports real link-training/
+signal-quality counters (`local_rcvr_nok`/`remote_rcv_nok` from
+1000BASE-T's own training handshake, SerDes bit-error-rate, false
+carrier sense, receive errors) that can indicate a marginal cable
+before the link actually drops. Not TDR -- no length or per-pair fault
+localization -- but a real, working, no-patch proxy for cable/signal
+quality. Shown as "Link Quality" on the Dashboard's Test Port card
+when the PHY driver reports it (confirmed present on the Pi 4;
+untested on the Pi 3's USB adapter).
 
 ### IP Configuration (`eth0`)
 

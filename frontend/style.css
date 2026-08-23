@@ -215,6 +215,16 @@ dl {
   margin: 0;
 }
 
+/* Same author-vs-user-agent-stylesheet issue already hit by
+   .active-tasks-badge/form/.tab-panel -- an author `display` rule on
+   the same element as [hidden] always wins over the UA stylesheet's
+   `[hidden] { display: none }`. First real dl to get its `hidden`
+   toggled via JS is the Link Quality block (2026-08-22, PHY
+   statistics), added proactively so it doesn't repeat that bug. */
+dl[hidden] {
+  display: none;
+}
+
 dt {
   color: var(--text-dim);
 }

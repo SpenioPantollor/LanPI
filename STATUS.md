@@ -197,6 +197,37 @@ this session -- no browser/display available in this environment), so
 the CSS fix itself rests on understanding the cascade bug, not a
 visual re-test.
 
+**PHY-level "Link Quality" stats added to the eth0 card (2026-08-22)**,
+grown out of the cable-diagnostics investigation above (once real Pi 4
+hardware was on hand): `ethtool --phy-statistics` works today, no
+kernel patch needed, and reports genuine link-training/signal-quality
+counters -- `phy_local_rcvr_nok`/`phy_remote_rcv_nok` come from
+1000BASE-T's own link-training handshake and can rise on a marginal
+cable *before* the link actually drops, plus `phy_serdes_ber_errors`
+(bit error rate), `phy_false_carrier_sense_errors`, and
+`phy_receive_errors`. Not a substitute for TDR (no length/per-pair
+fault localization), but a real, working, no-patch proxy for cable/
+signal quality where full `--cable-test` isn't available.
+`backend/network/link.py`'s `_get_phy_statistics()` parses whichever
+keys the driver actually reports into `GET /api/network/eth0`'s new
+`phy_statistics` field -- `{}` (not a dict of nulls) when the PHY
+driver doesn't support it at all, so the frontend can tell "not
+supported here" apart from "supported, all zero". Dashboard's Test
+Port card gets a new "Link Quality" section, hidden entirely when
+`phy_statistics` is empty. 4 new tests (`tests/test_link.py`,
+`link.py`'s first ever) cover the parsing logic via mocked `ethtool`
+output; also fixed a proactive `dl[hidden]` CSS gap while adding this
+-- `dl { display: grid }` is a base rule that would have hit the exact
+same author-vs-UA-stylesheet `[hidden]` bug already found three times
+this session (badge/form/tab-panel) the first time any `<dl>`'s
+`hidden` attribute got toggled via JS, which this feature is.
+**Confirmed live** on the Pi 4 directly via `ethtool --phy-statistics
+eth0` before writing the parser (all-zero counters on a healthy short
+patch cable, as expected) -- the parsing logic itself and the
+Dashboard rendering weren't independently re-verified after deploy in
+a real browser (no display/browser in this environment, same
+limitation as every other frontend change this session).
+
 **Manual "Retry known networks" action added for the fallback AP
 (2026-08-22)**, user-requested after a real Wi-Fi drop (`Pypas` went
 `ssid-not-found` mid-session, triggering the fallback AP exactly as
