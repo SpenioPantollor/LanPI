@@ -14,7 +14,6 @@ function renderDevices(devices) {
     const vendor = [device.vendor_value, device.vendor_id].filter(Boolean).join(" ");
     tr.innerHTML = `
       <td>${device.name_of_station || "-"}</td>
-      <td>${device.name_of_station_decoded || "-"}</td>
       <td>${device.mac}</td>
       <td>${device.ip || "-"}</td>
       <td>${vendor || "-"}</td>

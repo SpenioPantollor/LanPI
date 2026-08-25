@@ -132,10 +132,12 @@ def _crc16_arc(data: bytes) -> int:
     return crc & 0xFFFF
 
 
-def _decode_siemens_station_name(raw_name: str | None) -> str | None:
-    if not raw_name or len(raw_name) <= _SIEMENS_SUFFIX_LEN:
+def _decode_siemens_escape_label(label: str) -> str | None:
+    """CRC-16/ARC-verified decode of one "."-separated label -- see the
+    module-level comment above _SIEMENS_ESCAPE_TO_CHAR."""
+    if not label or len(label) <= _SIEMENS_SUFFIX_LEN:
         return None
-    body, suffix = raw_name[:-_SIEMENS_SUFFIX_LEN], raw_name[-_SIEMENS_SUFFIX_LEN:]
+    body, suffix = label[:-_SIEMENS_SUFFIX_LEN], label[-_SIEMENS_SUFFIX_LEN:]
     try:
         int(suffix, 16)
         body_bytes = body.encode("ascii")
@@ -148,6 +150,46 @@ def _decode_siemens_station_name(raw_name: str | None) -> str | None:
     for token, char in _SIEMENS_ESCAPE_TO_CHAR.items():
         decoded = decoded.replace(token, char)
     return decoded
+
+
+# Non-ASCII characters (e.g. Lithuanian ą/ū/ė/č) go through a completely
+# different, unrelated mechanism: standard IDNA/Punycode (RFC 3490),
+# the same ASCII-Compatible-Encoding every internationalized domain
+# name uses -- confirmed 2026-08-25 (maintainer-provided) and verified
+# directly against Python's stdlib "idna" codec: encoding "plcą1"
+# produces exactly "xn--plc1-dta", matching the maintainer's worked
+# example. The "xn--" prefix is IDNA's own standard marker, NOT the
+# Siemens escape table's "xn" token for "+" -- a label starting with
+# "xn--" must be tried as IDNA *first*, before ever considering it for
+# the CRC-gated Siemens decode above (this is why the check order
+# below matters, not just style).
+_IDNA_PREFIX = "xn--"
+
+
+def _decode_idna_label(label: str) -> str | None:
+    if not label.startswith(_IDNA_PREFIX):
+        return None
+    try:
+        return label.encode("ascii").decode("idna")
+    except UnicodeError:
+        return None
+
+
+def _decode_siemens_station_name(raw_name: str | None) -> str | None:
+    if not raw_name:
+        return None
+
+    changed = False
+    decoded_labels = []
+    for label in raw_name.split("."):
+        decoded = _decode_idna_label(label)
+        if decoded is None:
+            decoded = _decode_siemens_escape_label(label)
+        if decoded is not None:
+            changed = True
+        decoded_labels.append(decoded if decoded is not None else label)
+
+    return ".".join(decoded_labels) if changed else None
 
 
 def _interface_mac(interface: str) -> bytes | None:

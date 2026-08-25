@@ -131,6 +131,38 @@ def test_decode_siemens_station_name_rejects_crc_mismatch():
 def test_decode_siemens_station_name_returns_none_for_non_matching_names():
     assert profinet_scan._decode_siemens_station_name("pn-io") is None  # too short / no valid CRC tail
     assert profinet_scan._decode_siemens_station_name(None) is None
+    assert profinet_scan._decode_siemens_station_name("plc.io") is None  # already plain, no label changes
+
+
+def test_decode_siemens_station_name_decodes_idna_punycode_label():
+    # Non-ASCII (e.g. Lithuanian ą/ū/ė/č) uses IDNA/Punycode, a totally
+    # separate mechanism from the Siemens CRC escape table above --
+    # confirmed against Python's own stdlib "idna" codec, which matches
+    # the maintainer's real example exactly.
+    assert "plcą1".encode("idna") == b"xn--plc1-dta"
+    assert profinet_scan._decode_siemens_station_name("xn--plc1-dta") == "plcą1"
+
+
+def test_decode_siemens_station_name_tries_idna_before_siemens_escape_for_xn_prefix():
+    # "xn--" must never be misread as the Siemens "xn" token ("+") --
+    # this label is valid IDNA and must decode as such, not explode
+    # into some garbled CRC-escape attempt.
+    assert profinet_scan._decode_siemens_station_name("xn--ta-fua") == "ūta"
+
+
+def test_decode_siemens_station_name_handles_mixed_dot_separated_labels():
+    # One CRC-verified Siemens label + one IDNA label, joined by "." --
+    # each decoded independently and rejoined.
+    siemens_label = "prodxbtalpxbplcf320"  # -> "prod_talp_plc"
+    idna_label = "xn--plc1-dta"  # -> "plcą1"
+    combined = f"{siemens_label}.{idna_label}"
+    assert profinet_scan._decode_siemens_station_name(combined) == "prod_talp_plc.plcą1"
+
+
+def test_decode_siemens_station_name_falls_back_to_raw_label_on_invalid_idna():
+    # Starts with "xn--" but isn't valid punycode -- must not crash,
+    # and must leave that one label as-is rather than guessing.
+    assert profinet_scan._decode_siemens_station_name("xn--not-valid-punycode!!!") is None
 
 
 def test_parse_response_populates_decoded_name_for_a_real_confirmed_pair():

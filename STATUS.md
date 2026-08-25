@@ -102,13 +102,64 @@ check by a 1-in-65536 coincidence, a much stronger guarantee than the
 earlier vendor-ID + substring-only gate. Implemented as
 `_decode_siemens_station_name()` / `_crc16_arc()` in
 `profinet_scan.py`. Both raw and decoded names are returned
-(`name_of_station` / `name_of_station_decoded`) and shown as two
-columns on `/profinet.html`. The same `xb` pattern independently
+(`name_of_station` / `name_of_station_decoded`) -- the API still
+returns both, but **the decoded column was pulled from the
+`/profinet.html` UI later the same day** (maintainer's call, see the
+dedicated note further down this Summary): only the raw on-wire name
+is displayed for now. The same `xb` pattern independently
 visible in nmap's own `multicast-profinet-discovery.nse` docstring
 example was the original clue this was a real, reproducible encoding
 rather than a parsing bug. Passive PROFINET/S7 *traffic detection*
 (the Traffic page's EtherType/port heuristics) already existed
 separately and is unaffected.
+
+**Escape table expanded to 10 characters, then a second, unrelated
+decode path added for non-ASCII, same day (2026-08-25)**. Table grew
+from the 3 confirmed in the SiePortal thread (`_`/`+`/`=`) to 10
+(adding ` `/`*`/`.`/`/`/`[`/`\`/`~`), the extra 7 reverse-engineered by
+the maintainer directly against real TIA Portal, one character at a
+time -- no formula found relating a character to its 2-char token
+(checked ASCII mod 26/mod 36 and a German-keyboard/mnemonic angle,
+since Siemens is German -- none fit consistently, and `[` mapping to
+a *digit* token rather than a letter rules out any single alphabetic
+scheme), so it's treated as a fixed lookup table, extended
+empirically as more pairs are confirmed.
+
+Separately, and more importantly structurally: **non-ASCII characters
+(e.g. Lithuanian `ą`/`ū`/`ė`/`č`) don't go through the Siemens escape
+table at all** -- they use standard **IDNA/Punycode** (RFC 3490), the
+same ASCII-Compatible-Encoding every internationalized domain name
+uses, maintainer-confirmed and verified directly against Python's own
+stdlib `idna` codec: encoding `"plcą1"` produces exactly
+`"xn--plc1-dta"`, matching the maintainer's real-world example. The
+`xn--` prefix is IDNA's own standard marker -- critically, **not**
+the Siemens table's `xn` token for `+`, so it must be tried first, per
+`"."`-separated label, before ever falling through to the CRC-gated
+Siemens path (implemented that way in
+`_decode_siemens_station_name()`: split on `.`, each label tried as
+IDNA via `label.encode("ascii").decode("idna")` first, falling back
+to the CRC-verified Siemens decode only if that fails or the label
+doesn't start with `xn--`). Not yet live-verified against a real
+device with a non-ASCII configured name (no such device seen on this
+segment) -- confirmed only via the stdlib codec round-trip and the
+maintainer's worked example, same confidence level the original
+Siemens-escape pairs had before their first live confirmation.
+
+**Decoded-name column pulled from the UI, 2026-08-25** (maintainer's
+call, same day it was added): despite the CRC verification, showing a
+"best guess at your real device name" felt too risky for an
+industrial diagnostic tool where the displayed name might get acted
+on -- an incomplete escape table or an edge case neither of us has
+hit yet could still show something plausible-but-wrong. The decoder
+itself (`_decode_siemens_station_name()`, `_crc16_arc()`,
+`_decode_idna_label()`) stays in the backend and the API still returns
+`name_of_station_decoded` -- nothing was removed, only the frontend
+table column showing it. `/profinet.html` now shows a single `Name`
+column (the raw on-wire value only). Revisit surfacing it again (with
+an explicit "experimental, may be wrong" label, the maintainer's own
+suggested middle ground) once there's been more real-world
+confirmation, or leave it API-only for anyone who wants to read
+`name_of_station_decoded` directly.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
