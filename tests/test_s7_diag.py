@@ -138,3 +138,35 @@ def test_open_and_negotiate_cotp_returns_none_when_neither_tsap_confirms(monkeyp
     monkeypatch.setattr(s7_diag.socket, "socket", lambda *a, **k: sockets.pop(0))
 
     assert s7_diag._open_and_negotiate_cotp("10.0.0.1", 102, "10.0.0.2", 2.0) is None
+
+
+def test_open_and_negotiate_cotp_falls_back_after_connection_reset_on_first_tsap(monkeypatch):
+    # Real-world case confirmed live 2026-08-25 against an actual
+    # S7-1200: it hard-resets the TCP connection when it doesn't like
+    # the first TSAP, rather than a clean COTP-level non-confirm --
+    # the second TSAP, on a fresh connection, must still get tried.
+    class ResettingSocket(_FakeSocket):
+        def sendall(self, data):
+            raise ConnectionResetError("Connection reset by peer")
+
+    fallback = _FakeSocket(b"\x03\x00\x00\x06\x11\xd0")
+    sockets = [ResettingSocket(), fallback]
+    monkeypatch.setattr(s7_diag.socket, "socket", lambda *a, **k: sockets.pop(0))
+
+    sock = s7_diag._open_and_negotiate_cotp("10.0.0.1", 102, "10.0.0.2", 2.0)
+    assert sock is fallback
+    assert fallback.sent[0] == s7_diag._COTP_CR_FALLBACK
+
+
+def test_open_and_negotiate_cotp_reraises_when_every_attempt_errors(monkeypatch):
+    class RefusingSocket(_FakeSocket):
+        def connect(self, addr):
+            raise ConnectionRefusedError("refused")
+
+    monkeypatch.setattr(s7_diag.socket, "socket", lambda *a, **k: RefusingSocket())
+
+    try:
+        s7_diag._open_and_negotiate_cotp("10.0.0.1", 102, "10.0.0.2", 2.0)
+        assert False, "expected ConnectionRefusedError to propagate"
+    except ConnectionRefusedError:
+        pass

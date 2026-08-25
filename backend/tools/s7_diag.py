@@ -157,17 +157,36 @@ def _parse_component_identification(frame: bytes) -> dict:
 def _open_and_negotiate_cotp(
     host: str, port: int, source_ip: str, timeout: float
 ) -> socket.socket | None:
+    """Tries each TSAP pairing on its own fresh connection, same as
+    nmap's s7-info.nse. Some real CPUs (S7-1200/1500 in particular)
+    reject an unrecognized TSAP with a hard TCP reset rather than a
+    clean COTP-level non-confirm (confirmed live 2026-08-25 against a
+    real S7-1200: "Connection reset by peer" mid-negotiation on the
+    first attempt) -- so a connection-level OSError on one attempt
+    must still let the next TSAP get tried, not abort the whole
+    function. Only re-raises (for identify()'s own except clauses to
+    turn into a message) if every attempt failed at the connection
+    level; a clean-but-non-confirming response just moves on to the
+    next TSAP with no error recorded."""
+    last_exc: OSError | None = None
     for connection_request in (_COTP_CR_PRIMARY, _COTP_CR_FALLBACK):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
-        _bind_to_eth0_device(sock)
-        sock.bind((source_ip, 0))
-        sock.connect((host, port))
-        sock.sendall(connection_request)
-        response = _recv_tpkt_frame(sock)
+        try:
+            _bind_to_eth0_device(sock)
+            sock.bind((source_ip, 0))
+            sock.connect((host, port))
+            sock.sendall(connection_request)
+            response = _recv_tpkt_frame(sock)
+        except OSError as exc:
+            last_exc = exc
+            sock.close()
+            continue
         if response is not None and len(response) >= 6 and response[5] == _COTP_CONNECT_CONFIRM:
             return sock
         sock.close()
+    if last_exc is not None:
+        raise last_exc
     return None
 
 
