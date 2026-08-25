@@ -1117,7 +1117,24 @@ function layoutCards() {
   const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const gap = remPx * 1.25;
   const minColWidth = remPx * 22;
-  const containerWidth = container.clientWidth;
+  // .card is `position: absolute`, so its containing block is main's
+  // *padding* box, not its content box (a standard CSS quirk) -- a
+  // card's own `left`/`top` offsets are measured from the padding
+  // edge, meaning they land right where main's padding starts,
+  // ignoring it entirely. Left uncorrected, cards touch the browser
+  // edge whenever main's own left/right padding would otherwise have
+  // been the only inset (most visible at the single-column width, but
+  // present at any width) -- confirmed live 2026-08-25 on both this
+  // dashboard and Settings (settings.js has/had the identical bug).
+  // Reading the container's own *resolved* padding (getComputedStyle
+  // always returns px for standard properties, unlike the raw
+  // clamp() text --gap itself comes back as, see above) and adding it
+  // to every card's left offset fixes it without hand-duplicating the
+  // --gap clamp() logic.
+  const containerStyle = getComputedStyle(container);
+  const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
+  const paddingRight = parseFloat(containerStyle.paddingRight) || 0;
+  const containerWidth = container.clientWidth - paddingLeft - paddingRight;
   const columns = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)));
   const colWidth = (containerWidth - (columns - 1) * gap) / columns;
 
@@ -1135,7 +1152,7 @@ function layoutCards() {
       const anchorB = anchorA + 1;
       const top = Math.max(colHeights[anchorA], colHeights[anchorB]);
       card.style.width = `${colWidth * 2 + gap}px`;
-      card.style.left = `${anchorA * (colWidth + gap)}px`;
+      card.style.left = `${paddingLeft + anchorA * (colWidth + gap)}px`;
       card.style.top = `${top}px`;
       const newHeight = top + card.offsetHeight + gap;
       colHeights[anchorA] = newHeight;
@@ -1145,7 +1162,7 @@ function layoutCards() {
 
     const col = nextCol % columns;
     card.style.width = `${colWidth}px`;
-    card.style.left = `${col * (colWidth + gap)}px`;
+    card.style.left = `${paddingLeft + col * (colWidth + gap)}px`;
     card.style.top = `${colHeights[col]}px`;
     colHeights[col] += card.offsetHeight + gap;
     nextCol = col + 1;

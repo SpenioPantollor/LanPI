@@ -473,6 +473,24 @@ passwordless-sudo root-cause fix -- enough accumulated since 0.2.5 to
 warrant a bump. Single `VERSION` file at the repo root (see v0.2.3
 Foundation below), no other file hardcodes it.
 
+**Cards touching the browser edge on narrow windows, found and fixed
+2026-08-25** -- user-reported on Settings first, then confirmed live
+on the Dashboard too (same underlying bug, just more visually obvious
+on Settings' fewer/wider cards hitting the single-column width more
+readily). Root cause: `.card` is `position: absolute`, so per standard
+CSS its containing block is `main`'s *padding* box, not its content
+box -- a card's `left`/`top` offsets are measured from the padding
+edge, landing exactly where `main`'s own left/right padding (`var(
+--gap)`) starts and ignoring it entirely, rather than being inset by
+it. Present at any width, most visible once the layout drops to a
+single column (nothing left to absorb the lost inset into). Both
+`app.js`'s and `settings.js`'s `layoutCards()` (identical logic,
+separate copies) now read the container's own resolved padding via
+`getComputedStyle` (standard properties always resolve to real px,
+unlike the raw `clamp()` text `--gap` itself comes back as -- same
+distinction already noted in this function's own existing comment)
+and add it to every card's `left` offset.
+
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
 read into a full diagnostic toolset: Device Identification (FC43/

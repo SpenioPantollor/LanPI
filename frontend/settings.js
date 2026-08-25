@@ -278,7 +278,16 @@ function layoutCards() {
   const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const gap = remPx * 1.25;
   const minColWidth = remPx * 22;
-  const containerWidth = container.clientWidth;
+  // .card is `position: absolute`, so its containing block is main's
+  // *padding* box, not its content box -- a card's left/top offsets
+  // are measured from the padding edge, ignoring main's own padding
+  // entirely. Cards touched the browser edge as a result (confirmed
+  // live 2026-08-25, most visible at the single-column width; see
+  // app.js's layoutCards() for the same fix and fuller explanation).
+  const containerStyle = getComputedStyle(container);
+  const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
+  const paddingRight = parseFloat(containerStyle.paddingRight) || 0;
+  const containerWidth = container.clientWidth - paddingLeft - paddingRight;
   const columns = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)));
   const colWidth = (containerWidth - (columns - 1) * gap) / columns;
 
@@ -286,7 +295,7 @@ function layoutCards() {
   cards.forEach((card, i) => {
     const col = i % columns;
     card.style.width = `${colWidth}px`;
-    card.style.left = `${col * (colWidth + gap)}px`;
+    card.style.left = `${paddingLeft + col * (colWidth + gap)}px`;
     card.style.top = `${colHeights[col]}px`;
     colHeights[col] += card.offsetHeight + gap;
   });
