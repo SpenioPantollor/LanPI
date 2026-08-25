@@ -444,13 +444,27 @@ exists), and uses the correct `19 + param_len` offset. Tests updated
 to build a structurally-correct Ack_Data frame (extra header bytes
 included) and cover the header-level-error path.
 
-**Dashboard reordered: Neighbors (LLDP/CDP/MNDP) moved next to Test
-Port (2026-08-25)**, user-requested -- previously sat after Link Event
-History/IP Conflict Detection/DHCP Server Detection, now immediately
-follow the Test Port (eth0) card. Pure DOM reorder in `index.html`;
-`layoutCards()`'s masonry logic in `app.js` is already DOM-order-driven
-(fixed column-pair anchoring for `.card-wide`, round-robin for the
-rest), so no JS/CSS change needed.
+**Dashboard reordered: Neighbors (LLDP/CDP/MNDP) moved beside Test
+Port (2026-08-25)**, user-requested, two iterations. First pass moved
+the three cards earlier in `index.html`'s DOM order (right after Test
+Port instead of after Link Event History/IP Conflict/DHCP Server
+Detection) and shipped without a JS change, on the assumption
+`layoutCards()`'s existing DOM-order-driven masonry would be enough.
+Live screenshot showed otherwise: `.card-wide` was still hardcoded to
+anchor columns 0-1, the same column Test Port itself (the first card)
+always lands in via the round-robin -- so the wide stack wasn't
+positioned *beside* Test Port at all, just directly *below* it in the
+same column, one long column disproportionately taller than the rest
+("apacioj visi", user-reported). Second pass (after confirming via
+`AskUserQuestion` this was the intended reading, not the "shorter
+column" or "make Test Port wide too" alternatives): `layoutCards()`'s
+wide-card anchor is now columns 1-2 (not 0-1) whenever there are at
+least 3 columns, so the wide stack starts at the same top as column
+0's Test Port instead of waiting for it -- falls back to the original
+0-1 pair on a 2-column viewport, where there's no horizontal room
+beside column 0 anyway. Not yet live-screenshot-confirmed after this
+second fix -- do that before considering this settled, given the first
+pass's own live-only failure mode.
 
 **Version bumped to 0.2.6 (2026-08-25)**: this session added PROFINET
 DCP scanning, Siemens name decoding, S7 CPU identification, S7 Read

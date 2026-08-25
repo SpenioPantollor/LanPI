@@ -1080,9 +1080,9 @@ document.getElementById("capture-stop-btn").addEventListener("click", stopCaptur
 // column does, and only its own column's cards shift as a result.
 //
 // A card marked .card-wide (the LLDP/CDP/MNDP neighbor tables) always
-// spans the same fixed pair of columns (0-1), independent of the
-// narrow cards' own round-robin -- user-requested 2026-08-25, fixing
-// an earlier version where a wide card's column pair depended on
+// spans the same fixed pair of columns, independent of the narrow
+// cards' own round-robin -- user-requested 2026-08-25, fixing an
+// earlier version where a wide card's column pair depended on
 // wherever the shared round-robin counter happened to be when it was
 // reached, so consecutive wide cards could land in *different* column
 // pairs and appear staggered diagonally instead of stacked directly
@@ -1090,9 +1090,18 @@ document.getElementById("capture-stop-btn").addEventListener("click", stopCaptur
 // fixed pair makes DOM-order sequence and visual stacking order
 // match: LLDP, CDP, MNDP land one directly below the next. Narrow
 // cards keep their own independent round-robin across every column
-// (including 0-1) and simply continue below the wide stack's height
-// in whichever of those columns they land in -- no special-casing
-// needed there, colHeights already reflects it.
+// and simply continue below the wide stack's height in whichever
+// column they land in -- no special-casing needed there, colHeights
+// already reflects it.
+//
+// That fixed pair is columns 1-2, not 0-1 (changed same day, second
+// iteration): Test Port is the first card in DOM order and always
+// lands in column 0 via the round-robin, so anchoring the wide stack
+// there too made it wait for Test Port to finish and render below it.
+// User wanted the neighbor tables *beside* Test Port instead, at the
+// same top -- reserving columns 1-2 for the wide stack (falling back
+// to 0-1 on a 2-column viewport, where there's no room beside column
+// 0 anyway) achieves that regardless of how tall Test Port itself is.
 function layoutCards() {
   const container = document.querySelector("main");
   const cards = Array.from(container.querySelectorAll(".card"));
@@ -1116,13 +1125,21 @@ function layoutCards() {
   let nextCol = 0;
   cards.forEach((card) => {
     if (card.classList.contains("card-wide") && columns >= 2) {
-      const top = Math.max(colHeights[0], colHeights[1]);
+      // Anchored beside Test Port (the first, narrow, card -- always
+      // column 0) rather than below it: columns 1-2 when there's room
+      // for that third column pair, so the wide stack starts at the
+      // same top as Test Port instead of waiting for it to finish.
+      // Falls back to the original 0-1 pair on a 2-column viewport,
+      // where there's no room beside column 0 anyway.
+      const anchorA = columns >= 3 ? 1 : 0;
+      const anchorB = anchorA + 1;
+      const top = Math.max(colHeights[anchorA], colHeights[anchorB]);
       card.style.width = `${colWidth * 2 + gap}px`;
-      card.style.left = "0px";
+      card.style.left = `${anchorA * (colWidth + gap)}px`;
       card.style.top = `${top}px`;
       const newHeight = top + card.offsetHeight + gap;
-      colHeights[0] = newHeight;
-      colHeights[1] = newHeight;
+      colHeights[anchorA] = newHeight;
+      colHeights[anchorB] = newHeight;
       return;
     }
 
