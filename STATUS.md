@@ -1302,12 +1302,23 @@ available to test against yet -- see "Next steps" below for those.
 
 - PROFINET DCP Identify-All scan's decoded-name algorithm
   (`_decode_siemens_station_name()`) is CRC-verified, not a guess --
-  see Summary above. Its escape table only covers `_`/`+`/`=` (the
-  three confirmed from the source thread); a name whose engineering
-  form used some other disallowed character wouldn't decode even if
-  it happened to pass the CRC check on a partial/wrong unescape, so a
-  `None` (or an odd-looking decoded string) still just means "not
-  covered by this table", not "definitely no better name exists".
+  see Summary above. Its escape table now covers 10 characters
+  (` `/`*`/`+`/`.`/`/`/`=`/`[`/`\`/`_`/`~`) -- 3 from the source
+  thread, the other 7 reverse-engineered by the maintainer directly
+  against real TIA Portal, one character at a time. No formula found
+  relating a character to its token (checked ASCII mod 26/mod 36 and a
+  German-keyboard/mnemonic angle since Siemens is German -- none fit;
+  `[` mapping to a *digit* token rules out any single alphabetic
+  scheme), so this looks like a fixed lookup table, not something
+  computable -- further characters can only be added empirically. A
+  name using some character outside this table wouldn't decode even
+  though it *did* go through TIA-Portal conversion, so a `None` decode
+  still just means "not covered by this table yet", not "definitely no
+  better name exists". Also note: the CRC check proves "this raw name
+  + suffix is a genuine TIA-Portal-converted pair", but does NOT
+  independently verify each table entry is the character TIA Portal
+  actually meant -- a wrong entry could in principle still produce a
+  plausible-looking wrong decode.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a

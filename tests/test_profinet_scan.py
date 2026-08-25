@@ -112,10 +112,13 @@ def test_decode_siemens_station_name_matches_confirmed_real_world_pairs():
     assert profinet_scan._decode_siemens_station_name("k1cjf11xbcpu1a19e") == "k1cjf11_cpu1"
 
 
-def test_decode_siemens_station_name_decodes_plus_and_equals_escapes():
-    body = "axnbxvc"  # "a" + "xn"(->+) + "b" + "xv"(->=) + "c" = "a+b=c"
+def test_decode_siemens_station_name_decodes_every_known_escape_token():
+    # One of each confirmed escape token, back to back, with a real
+    # CRC computed the same way the encoder would.
+    body = "".join(profinet_scan._SIEMENS_ESCAPE_TO_CHAR.keys())
+    expected = "".join(profinet_scan._SIEMENS_ESCAPE_TO_CHAR.values())
     suffix = f"{profinet_scan._crc16_arc(body.encode('ascii')):04x}"
-    assert profinet_scan._decode_siemens_station_name(body + suffix) == "a+b=c"
+    assert profinet_scan._decode_siemens_station_name(body + suffix) == expected
 
 
 def test_decode_siemens_station_name_rejects_crc_mismatch():

@@ -73,13 +73,14 @@ _IP_INFO_TEXT = {0: "no IP set", 1: "IP set", 2: "IP set via DHCP"}
 # The exact derivation (source: Siemens SiePortal forum, "Procedure to
 # convert PROFINET device names", post 301814 -- the live page needs
 # JS/login and couldn't be fetched directly, content relayed
-# 2026-08-25): lowercase the name, replace "_"->"xb", "+"->"xn",
-# "="->"xv", then append a CRC-16/ARC (poly 0x8005, init 0x0000,
-# reflected in/out, xorout 0x0000 -- the classic "CRC-16"/ARC/IBM
-# variant) of the escaped string, as 4 lowercase hex digits. This is
-# **provable, not a heuristic**: our CRC-16/ARC implementation
-# reproduces the standard check value (0xbb3d for "123456789") and
-# exactly reproduces both real suffixes seen live on this segment --
+# 2026-08-25): lowercase the name, replace each disallowed character
+# with a 2-character "x"+token (table below), then append a CRC-16/ARC
+# (poly 0x8005, init 0x0000, reflected in/out, xorout 0x0000 -- the
+# classic "CRC-16"/ARC/IBM variant) of the escaped string, as 4
+# lowercase hex digits. The CRC step is **provable, not a heuristic**:
+# our CRC-16/ARC implementation reproduces the standard check value
+# (0xbb3d for "123456789") and exactly reproduces both real suffixes
+# seen live on this segment --
 #   "prodxbtalpxbplc"  -> CRC f320 -> "prodxbtalpxbplcf320" (raw)
 #     decodes to "prod_talp_plc"
 #   "k1cjf11xbcpu1"    -> CRC a19e -> "k1cjf11xbcpu1a19e"   (raw)
@@ -90,8 +91,35 @@ _IP_INFO_TEXT = {0: "no IP set", 1: "IP set", 2: "IP set via DHCP"}
 # what makes it safe to apply to *any* device (not gated to a specific
 # vendor_id): a name that was never TIA-Portal-converted will only
 # "accidentally" pass by pure chance (1 in 65536), vs. a substring-only
-# check like "contains xb" which has no such guarantee at all.
-_SIEMENS_ESCAPE_TO_CHAR = {"xb": "_", "xn": "+", "xv": "="}
+# check like "contains xb" which has no such guarantee at all. Note the
+# CRC only proves "this raw name + suffix is a valid TIA-Portal-style
+# converted pair" -- it does NOT independently confirm every entry in
+# the escape table below is the character TIA Portal actually meant
+# (that would need re-encoding and comparing), so a wrong table entry
+# could in principle still produce a plausible-looking wrong decode.
+#
+# Escape table: "_"/"+"/"=" come from the SiePortal post above; the
+# rest were reverse-engineered directly against real TIA Portal by the
+# maintainer (each character tested individually and observed in the
+# resulting Converted Name). No formula found relating the character
+# to its token (checked ASCII value mod 26/mod 36 and simple offsets
+# against all 10 known pairs -- none fit consistently, and "[" mapping
+# to a *digit* ("x2") rather than a letter rules out any single
+# alphabetic-only scheme) -- this looks like a fixed lookup table
+# Siemens hard-coded, not something computable, so further characters
+# can only be added empirically as they're found.
+_SIEMENS_ESCAPE_TO_CHAR = {
+    "xa": " ",
+    "xb": "_",
+    "xd": ".",
+    "xh": "~",
+    "xm": "*",
+    "xn": "+",
+    "xr": "/",
+    "xu": "\\",
+    "xv": "=",
+    "x2": "[",
+}
 _SIEMENS_SUFFIX_LEN = 4
 
 
