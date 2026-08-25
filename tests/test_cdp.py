@@ -13,9 +13,8 @@ def _tlv(tlv_type: int, value: bytes) -> bytes:
     return struct.pack("!HH", tlv_type, length) + value
 
 
-def _cdp_frame(cdp_payload: bytes) -> bytes:
+def _cdp_frame(cdp_payload: bytes, src: bytes = b"\x11" * 6) -> bytes:
     dst = cdp._CDP_DEST_MAC
-    src = b"\x11" * 6
     length = b"\x00\x00"  # 802.3 length field, unused by the parser
     llc_snap = b"\xaa\xaa\x03" + cdp._CDP_SNAP_OUI + cdp._CDP_SNAP_PID
     return dst + src + length + llc_snap + cdp_payload
@@ -99,10 +98,62 @@ def test_handle_packet_ignores_non_snap_llc():
     assert cdp._neighbors == {}
 
 
-def test_handle_packet_parses_and_caches_a_cdp_frame():
+def test_handle_packet_parses_and_caches_a_cdp_frame_keyed_by_source_mac():
     cdp._neighbors.clear()
     packet = _cdp_frame(_cdp_payload(_tlv(0x0001, b"switch01")))
 
     cdp._handle_packet("eth0", packet)
 
-    assert cdp._neighbors["eth0"]["device_id"] == "switch01"
+    assert cdp._neighbors["11:11:11:11:11:11"]["device_id"] == "switch01"
+    assert cdp._neighbors["11:11:11:11:11:11"]["mac"] == "11:11:11:11:11:11"
+
+
+def test_handle_packet_keeps_separate_neighbors_for_different_source_macs():
+    cdp._neighbors.clear()
+    cdp._handle_packet(
+        "eth0", _cdp_frame(_cdp_payload(_tlv(0x0001, b"switch01")), src=b"\xaa" * 6)
+    )
+    cdp._handle_packet(
+        "eth0", _cdp_frame(_cdp_payload(_tlv(0x0001, b"switch02")), src=b"\xbb" * 6)
+    )
+
+    assert cdp._neighbors["aa:aa:aa:aa:aa:aa"]["device_id"] == "switch01"
+    assert cdp._neighbors["bb:bb:bb:bb:bb:bb"]["device_id"] == "switch02"
+    assert len(cdp._neighbors) == 2
+
+
+def test_get_neighbors_lists_all_fresh_neighbors(monkeypatch):
+    cdp._neighbors.clear()
+    cdp._started_interfaces.clear()
+    monkeypatch.setattr(cdp, "start_listener", lambda interface="eth0": None)
+
+    cdp._handle_packet(
+        "eth0", _cdp_frame(_cdp_payload(_tlv(0x0001, b"switch01")), src=b"\xaa" * 6)
+    )
+    cdp._handle_packet(
+        "eth0", _cdp_frame(_cdp_payload(_tlv(0x0001, b"switch02")), src=b"\xbb" * 6)
+    )
+
+    result = cdp.get_neighbors("eth0")
+
+    assert result["present"] is True
+    assert {n["device_id"] for n in result["neighbors"]} == {"switch01", "switch02"}
+
+
+def test_get_neighbors_purges_stale_entries_from_the_cache_not_just_the_response(monkeypatch):
+    cdp._neighbors.clear()
+    cdp._started_interfaces.clear()
+
+    times = iter([1000.0, 1100.0])  # one packet, then a read 100s later
+    monkeypatch.setattr(cdp.time, "time", lambda: next(times))
+    monkeypatch.setattr(cdp, "start_listener", lambda interface="eth0": None)
+
+    cdp._handle_packet("eth0", _cdp_frame(_cdp_payload(_tlv(0x0001, b"gone"))))
+
+    cdp.get_neighbors("eth0", stale_after=60.0)
+
+    assert cdp._neighbors == {}
+
+
+def test_default_stale_after_is_60_seconds():
+    assert cdp._DEFAULT_STALE_AFTER == 60.0

@@ -12,10 +12,10 @@ def lldp_neighbors() -> dict:
 
 
 @router.get("/cdp")
-def cdp_neighbor() -> dict:
-    return cdp.get_neighbor(TEST_PORT_INTERFACE)
+def cdp_neighbors() -> dict:
+    return cdp.get_neighbors(TEST_PORT_INTERFACE)
 
 
 @router.get("/mndp")
-def mndp_neighbor() -> dict:
-    return mndp.get_neighbor(TEST_PORT_INTERFACE)
+def mndp_neighbors() -> dict:
+    return mndp.get_neighbors(TEST_PORT_INTERFACE)

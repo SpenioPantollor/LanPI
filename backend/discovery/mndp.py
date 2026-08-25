@@ -21,6 +21,15 @@ TLV type values and the little-endian uptime quirk are per publicly
 documented MNDP reimplementations (Wireshark's mndp dissector, various
 open-source MNDP clients) -- not verified against RouterOS source, so
 treat as best-effort pending live confirmation against a real router.
+
+Caches every distinct neighbor seen, keyed by the Ethernet frame's
+source MAC (not the payload's own optional MAC-address TLV, which
+could in principle be missing) -- same fix and reasoning as
+backend/discovery/lldp.py (2026-08-25): a single-neighbor cache would
+flicker/overwrite itself the moment more than one MNDP-speaking
+device was reachable through the test switch. Same shape as
+traffic_stats.py's _talkers dict, same bounding (_MAX_NEIGHBORS,
+oldest-by-last-seen evicted over the cap).
 """
 
 from __future__ import annotations
@@ -32,9 +41,11 @@ import time
 from backend.capture import dispatcher
 
 _MNDP_PORT = 5678
+_MAX_NEIGHBORS = 500
+_DEFAULT_STALE_AFTER = 60.0  # user-set: purge a neighbor entirely after 60s of silence
 
 _lock = threading.Lock()
-_neighbors: dict[str, dict] = {}
+_neighbors: dict[str, dict] = {}  # mac -> {..fields.., mac, last_seen}
 _started_interfaces: set[str] = set()
 
 
@@ -105,10 +116,16 @@ def _handle_packet(interface: str, packet: bytes) -> None:
     if len(packet) < mndp_offset:
         return
 
+    mac = ":".join(f"{b:02x}" for b in packet[6:12])
     neighbor = _parse_mndp_payload(packet[mndp_offset:])
+    neighbor["mac"] = mac
     neighbor["last_seen"] = time.time()
     with _lock:
-        _neighbors[interface] = neighbor
+        _neighbors[mac] = neighbor
+        if len(_neighbors) > _MAX_NEIGHBORS:
+            oldest_mac = min(_neighbors, key=lambda m: _neighbors[m]["last_seen"])
+            if oldest_mac != mac:
+                del _neighbors[oldest_mac]
 
 
 def start_listener(interface: str = "eth0") -> None:
@@ -120,21 +137,21 @@ def start_listener(interface: str = "eth0") -> None:
     dispatcher.register_handler(lambda packet: _handle_packet(interface, packet))
 
 
-def get_neighbor(interface: str = "eth0", stale_after: float = 150.0) -> dict:
+def get_neighbors(interface: str = "eth0", stale_after: float = _DEFAULT_STALE_AFTER) -> dict:
     start_listener(interface)
 
+    now = time.time()
     with _lock:
-        neighbor = _neighbors.get(interface)
+        stale_macs = [mac for mac, n in _neighbors.items() if now - n["last_seen"] > stale_after]
+        for mac in stale_macs:
+            del _neighbors[mac]
+        neighbors = list(_neighbors.values())
 
-    if not neighbor:
-        return {"interface": interface, "present": False}
+    fresh = []
+    for neighbor in neighbors:
+        entry = dict(neighbor)
+        entry["age_seconds"] = int(now - neighbor["last_seen"])
+        fresh.append(entry)
+    fresh.sort(key=lambda n: n["age_seconds"])
 
-    age = time.time() - neighbor["last_seen"]
-    if age > stale_after:
-        return {"interface": interface, "present": False}
-
-    result = dict(neighbor)
-    result["interface"] = interface
-    result["present"] = True
-    result["age_seconds"] = int(age)
-    return result
+    return {"interface": interface, "present": len(fresh) > 0, "neighbors": fresh}

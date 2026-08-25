@@ -32,7 +32,7 @@ from backend.capture import dispatcher
 
 _LLDP_ETHERTYPE = 0x88CC
 _MAX_NEIGHBORS = 500
-_DEFAULT_STALE_AFTER = 150.0
+_DEFAULT_STALE_AFTER = 60.0  # user-set: purge a neighbor entirely after 60s of silence
 
 _lock = threading.Lock()
 _neighbors: dict[str, dict] = {}  # mac -> {..fields.., mac, last_seen}
@@ -144,15 +144,15 @@ def get_neighbors(interface: str = "eth0", stale_after: float = _DEFAULT_STALE_A
 
     now = time.time()
     with _lock:
+        stale_macs = [mac for mac, n in _neighbors.items() if now - n["last_seen"] > stale_after]
+        for mac in stale_macs:
+            del _neighbors[mac]
         neighbors = list(_neighbors.values())
 
     fresh = []
     for neighbor in neighbors:
-        age = now - neighbor["last_seen"]
-        if age > stale_after:
-            continue
         entry = dict(neighbor)
-        entry["age_seconds"] = int(age)
+        entry["age_seconds"] = int(now - neighbor["last_seen"])
         fresh.append(entry)
     fresh.sort(key=lambda n: n["age_seconds"])
 

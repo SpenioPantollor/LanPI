@@ -19,8 +19,11 @@ def _mndp_payload(tlvs: bytes) -> bytes:
     return b"\x00\x00\x00\x01" + tlvs  # 2-byte header + 2-byte sequence number
 
 
-def _ip_udp_frame(sport: int, dport: int, payload: bytes, proto: int = 17, ethertype: int = 0x0800) -> bytes:
-    eth = b"\x00" * 6 + b"\x11" * 6 + struct.pack("!H", ethertype)
+def _ip_udp_frame(
+    sport: int, dport: int, payload: bytes, proto: int = 17, ethertype: int = 0x0800,
+    src_mac: bytes = b"\x11" * 6,
+) -> bytes:
+    eth = b"\x00" * 6 + src_mac + struct.pack("!H", ethertype)
     ip_header = bytearray(20)
     ip_header[0] = 0x45  # version 4, IHL 5 (20 bytes)
     ip_header[9] = proto
@@ -98,10 +101,76 @@ def test_handle_packet_ignores_wrong_port():
     assert mndp._neighbors == {}
 
 
-def test_handle_packet_parses_and_caches_an_mndp_frame():
+def test_handle_packet_parses_and_caches_an_mndp_frame_keyed_by_source_mac():
     mndp._neighbors.clear()
     packet = _ip_udp_frame(12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"office-router")))
 
     mndp._handle_packet("eth0", packet)
 
-    assert mndp._neighbors["eth0"]["identity"] == "office-router"
+    assert mndp._neighbors["11:11:11:11:11:11"]["identity"] == "office-router"
+    assert mndp._neighbors["11:11:11:11:11:11"]["mac"] == "11:11:11:11:11:11"
+
+
+def test_handle_packet_keeps_separate_neighbors_for_different_source_macs():
+    mndp._neighbors.clear()
+    mndp._handle_packet(
+        "eth0",
+        _ip_udp_frame(
+            12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"router-a")), src_mac=b"\xaa" * 6
+        ),
+    )
+    mndp._handle_packet(
+        "eth0",
+        _ip_udp_frame(
+            12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"router-b")), src_mac=b"\xbb" * 6
+        ),
+    )
+
+    assert mndp._neighbors["aa:aa:aa:aa:aa:aa"]["identity"] == "router-a"
+    assert mndp._neighbors["bb:bb:bb:bb:bb:bb"]["identity"] == "router-b"
+    assert len(mndp._neighbors) == 2
+
+
+def test_get_neighbors_lists_all_fresh_neighbors(monkeypatch):
+    mndp._neighbors.clear()
+    mndp._started_interfaces.clear()
+    monkeypatch.setattr(mndp, "start_listener", lambda interface="eth0": None)
+
+    mndp._handle_packet(
+        "eth0",
+        _ip_udp_frame(
+            12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"router-a")), src_mac=b"\xaa" * 6
+        ),
+    )
+    mndp._handle_packet(
+        "eth0",
+        _ip_udp_frame(
+            12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"router-b")), src_mac=b"\xbb" * 6
+        ),
+    )
+
+    result = mndp.get_neighbors("eth0")
+
+    assert result["present"] is True
+    assert {n["identity"] for n in result["neighbors"]} == {"router-a", "router-b"}
+
+
+def test_get_neighbors_purges_stale_entries_from_the_cache_not_just_the_response(monkeypatch):
+    mndp._neighbors.clear()
+    mndp._started_interfaces.clear()
+
+    times = iter([1000.0, 1100.0])  # one packet, then a read 100s later
+    monkeypatch.setattr(mndp.time, "time", lambda: next(times))
+    monkeypatch.setattr(mndp, "start_listener", lambda interface="eth0": None)
+
+    mndp._handle_packet(
+        "eth0", _ip_udp_frame(12345, mndp._MNDP_PORT, _mndp_payload(_tlv(0x0005, b"gone")))
+    )
+
+    mndp.get_neighbors("eth0", stale_after=60.0)
+
+    assert mndp._neighbors == {}
+
+
+def test_default_stale_after_is_60_seconds():
+    assert mndp._DEFAULT_STALE_AFTER == 60.0

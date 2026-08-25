@@ -263,13 +263,32 @@ re-keying `_neighbors` by source MAC instead -- same shape as
 returning `{"interface", "present", "neighbors": [...]}` instead of a
 single flattened object -- `GET /api/discovery/lldp`'s response shape
 changed accordingly (internal API, only consumed by LanPi's own
-frontend, no external compatibility concern). The Dashboard's
-"Neighbor (LLDP)" card is now "Neighbors (LLDP)", a table instead of
-a `<dl>`, same visual pattern as the IP Conflict/DHCP Server tables
-already on that page. CDP and MNDP have the identical single-neighbor
-design (same original reasoning) but weren't touched -- neither
-Cisco nor MikroTik gear is on this test network, so the bug hasn't
-actually manifested for them; revisit if it does.
+frontend, no external compatibility concern).
+
+**Extended to CDP and MNDP, and the UI redesigned, same day
+(2026-08-25, user-requested)**: `backend/discovery/cdp.py` and
+`mndp.py` got the identical multi-neighbor-by-MAC treatment (same
+original single-neighbor design, same reasoning) -- not because either
+protocol's bug had actually manifested (no Cisco/MikroTik gear is on
+this test network) but for consistency, since the same flicker would
+hit them the moment it did. All three (`GET /api/discovery/{lldp,cdp,
+mndp}`) also now purge a neighbor from the cache outright once it's
+gone unseen for 60s (`_DEFAULT_STALE_AFTER`, dropped from the earlier
+150s default), rather than just excluding it from that one response
+while it lingers in memory. Dashboard cards for all three: exactly one
+neighbor still renders as the familiar `<dl>` single-value view (less
+visual noise for the common case); two or more switches to a table
+instead -- same underlying data, just a friendlier presentation when
+there's only one thing to show. Every table column is sortable
+(click a header to sort by it, click again to reverse), same
+click-to-sort/`sorted`/`sorted-desc` CSS pattern already used by
+Traffic's Top Talkers table, factored into one shared
+`renderNeighborCard()`/`setupSortableNeighborHeaders()` pair in
+`app.js` (the three protocols only differ in their column list, not
+the single-vs-table/sort mechanics, so a shared helper was the
+right call here -- unlike e.g. IP Scanner vs Port Scanner, which
+stay separate despite superficial similarity because their
+underlying tools/semantics genuinely differ).
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
@@ -808,22 +827,27 @@ from before this date, that history no longer exists.
     just the most recent one -- returns a `neighbors` list, not a
     single object (changed 2026-08-25, see Summary/Known-gaps: a
     single-neighbor cache flickered once more than one LLDP-speaking
-    device was reachable through the test switch). Runs unprivileged
+    device was reachable through the test switch). An entry not seen
+    for 60s (`_DEFAULT_STALE_AFTER`, user-set 2026-08-25 -- was 150s)
+    is purged from the cache outright on the next `get_neighbors()`
+    call, not just hidden from that one response. Runs unprivileged
     via `setcap cap_net_raw,cap_net_admin` on `tcpdump`, no root/sudo
     needed.
   - `GET /api/discovery/cdp` — same background-tcpdump-plus-cache
-    architecture as LLDP (`backend/discovery/cdp.py`), adapted for
-    CDP's 802.3+LLC/SNAP framing (dest MAC `01:00:0c:cc:cc:cc`, OUI
-    `00:00:0c`, PID `0x2000`) instead of LLDP's plain EtherType.
-    Parses device ID, port ID, platform, software version, native
-    VLAN, address.
+    architecture as LLDP (`backend/discovery/cdp.py`, including the
+    multi-neighbor/60s-purge behavior above, extended here 2026-08-25),
+    adapted for CDP's 802.3+LLC/SNAP framing (dest MAC
+    `01:00:0c:cc:cc:cc`, OUI `00:00:0c`, PID `0x2000`) instead of
+    LLDP's plain EtherType. Parses device ID, port ID, platform,
+    software version, native VLAN, address.
   - `GET /api/discovery/mndp` — same architecture again
-    (`backend/discovery/mndp.py`), for MikroTik's MNDP: UDP broadcast
-    (port 5678) rather than an L2 frame, so framing needs the IPv4
-    header's variable length read from the packet itself
-    (`(byte[14] & 0x0F) * 4`) before the UDP/MNDP payload starts.
-    Parses identity, platform, board, RouterOS version, uptime,
-    software ID, interface name, IPv4/MAC address.
+    (`backend/discovery/mndp.py`, same multi-neighbor/60s-purge
+    extension), for MikroTik's MNDP: UDP broadcast (port 5678) rather
+    than an L2 frame, so framing needs the IPv4 header's variable
+    length read from the packet itself (`(byte[14] & 0x0F) * 4`)
+    before the UDP/MNDP payload starts. Parses identity, platform,
+    board, RouterOS version, uptime, software ID, interface name,
+    IPv4/MAC address.
   - `POST /api/tools/mtr/start`, `GET /api/tools/mtr/status`,
     `POST /api/tools/mtr/stop` — MTR report (`backend/tools/mtr.py`)
     sourced from eth0's address (same default-route reasoning as the

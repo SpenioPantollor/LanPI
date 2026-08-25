@@ -227,16 +227,30 @@
         MAC), not just the most recent one -- behind a switch more
         than one LLDP-speaking neighbor can be reachable at once.
       </p>
-      <div class="table-scroll">
+      <dl id="lldp-single" hidden>
+        <dt>System</dt>
+        <dd id="lldp-single-system">-</dd>
+        <dt>Chassis ID</dt>
+        <dd id="lldp-single-chassis">-</dd>
+        <dt>Port</dt>
+        <dd id="lldp-single-port">-</dd>
+        <dt>Management IP</dt>
+        <dd id="lldp-single-mgmt-ip">-</dd>
+        <dt>VLAN</dt>
+        <dd id="lldp-single-vlan">-</dd>
+        <dt>Last seen</dt>
+        <dd id="lldp-single-age">-</dd>
+      </dl>
+      <div id="lldp-table-wrap" class="table-scroll" hidden>
         <table id="lldp-table" class="data-table">
           <thead>
             <tr>
-              <th>System</th>
-              <th>Chassis ID</th>
-              <th>Port</th>
-              <th>Management IP</th>
-              <th>VLAN</th>
-              <th>Last seen</th>
+              <th data-sort="system">System</th>
+              <th data-sort="chassis">Chassis ID</th>
+              <th data-sort="port">Port</th>
+              <th data-sort="mgmt-ip">Management IP</th>
+              <th data-sort="vlan">VLAN</th>
+              <th data-sort="age">Last seen</th>
             </tr>
           </thead>
           <tbody id="lldp-body"></tbody>
@@ -246,51 +260,89 @@
     </section>
 
     <section class="card">
-      <h2>Neighbor (CDP)</h2>
-      <p class="card-hint">Cisco Discovery Protocol -- Cisco-proprietary equivalent of LLDP.</p>
-      <dl id="cdp">
-        <dt>Status</dt>
-        <dd id="cdp-status">checking...</dd>
+      <h2>Neighbors (CDP)</h2>
+      <p class="card-hint">
+        Cisco Discovery Protocol -- Cisco-proprietary equivalent of
+        LLDP. Lists every distinct device seen (by source MAC), not
+        just the most recent one.
+      </p>
+      <dl id="cdp-single" hidden>
         <dt>Device ID</dt>
-        <dd id="cdp-device">-</dd>
+        <dd id="cdp-single-device-id">-</dd>
         <dt>Port</dt>
-        <dd id="cdp-port">-</dd>
+        <dd id="cdp-single-port-id">-</dd>
         <dt>Platform</dt>
-        <dd id="cdp-platform">-</dd>
+        <dd id="cdp-single-platform">-</dd>
         <dt>Software</dt>
-        <dd id="cdp-software">-</dd>
+        <dd id="cdp-single-software-version">-</dd>
         <dt>Native VLAN</dt>
-        <dd id="cdp-vlan">-</dd>
+        <dd id="cdp-single-native-vlan">-</dd>
         <dt>Address</dt>
-        <dd id="cdp-address">-</dd>
+        <dd id="cdp-single-address">-</dd>
         <dt>Last seen</dt>
-        <dd id="cdp-age">-</dd>
+        <dd id="cdp-single-age">-</dd>
       </dl>
+      <div id="cdp-table-wrap" class="table-scroll" hidden>
+        <table id="cdp-table" class="data-table">
+          <thead>
+            <tr>
+              <th data-sort="device-id">Device ID</th>
+              <th data-sort="port-id">Port</th>
+              <th data-sort="platform">Platform</th>
+              <th data-sort="software-version">Software</th>
+              <th data-sort="native-vlan">Native VLAN</th>
+              <th data-sort="address">Address</th>
+              <th data-sort="age">Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="cdp-body"></tbody>
+        </table>
+      </div>
+      <p id="cdp-empty" class="card-hint">checking...</p>
     </section>
 
     <section class="card">
-      <h2>Neighbor (MNDP)</h2>
-      <p class="card-hint">MikroTik Neighbor Discovery Protocol.</p>
-      <dl id="mndp">
-        <dt>Status</dt>
-        <dd id="mndp-status">checking...</dd>
+      <h2>Neighbors (MNDP)</h2>
+      <p class="card-hint">
+        MikroTik Neighbor Discovery Protocol. Lists every distinct
+        device seen (by source MAC), not just the most recent one.
+      </p>
+      <dl id="mndp-single" hidden>
         <dt>Identity</dt>
-        <dd id="mndp-identity">-</dd>
+        <dd id="mndp-single-identity">-</dd>
         <dt>Platform / Board</dt>
-        <dd id="mndp-platform">-</dd>
+        <dd id="mndp-single-platform-board">-</dd>
         <dt>Version</dt>
-        <dd id="mndp-version">-</dd>
+        <dd id="mndp-single-version">-</dd>
         <dt>Interface</dt>
-        <dd id="mndp-interface">-</dd>
+        <dd id="mndp-single-interface-name">-</dd>
         <dt>IPv4 Address</dt>
-        <dd id="mndp-address">-</dd>
+        <dd id="mndp-single-ipv4-address">-</dd>
         <dt>MAC Address</dt>
-        <dd id="mndp-mac">-</dd>
+        <dd id="mndp-single-mac">-</dd>
         <dt>Uptime</dt>
-        <dd id="mndp-uptime">-</dd>
+        <dd id="mndp-single-uptime-seconds">-</dd>
         <dt>Last seen</dt>
-        <dd id="mndp-age">-</dd>
+        <dd id="mndp-single-age">-</dd>
       </dl>
+      <div id="mndp-table-wrap" class="table-scroll" hidden>
+        <table id="mndp-table" class="data-table">
+          <thead>
+            <tr>
+              <th data-sort="identity">Identity</th>
+              <th data-sort="platform-board">Platform / Board</th>
+              <th data-sort="version">Version</th>
+              <th data-sort="interface-name">Interface</th>
+              <th data-sort="ipv4-address">IPv4 Address</th>
+              <th data-sort="mac">MAC Address</th>
+              <th data-sort="uptime-seconds">Uptime</th>
+              <th data-sort="age">Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="mndp-body"></tbody>
+        </table>
+      </div>
+      <p id="mndp-empty" class="card-hint">checking...</p>
     </section>
 
     <section class="card">

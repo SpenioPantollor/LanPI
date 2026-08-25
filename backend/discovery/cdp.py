@@ -15,6 +15,14 @@ doesn't:
 
 CDP payload: version(1) ttl(1) checksum(2) then TLVs (type(2) length(2,
 includes this 4-byte header) value(length-4)).
+
+Caches every distinct neighbor seen, keyed by source MAC, not just the
+single most-recently-seen one -- same fix and reasoning as
+backend/discovery/lldp.py (2026-08-25): a single-neighbor cache would
+flicker/overwrite itself the moment more than one CDP-speaking device
+was reachable through the test switch. Same shape as
+traffic_stats.py's _talkers dict, same bounding (_MAX_NEIGHBORS,
+oldest-by-last-seen evicted over the cap).
 """
 
 from __future__ import annotations
@@ -28,9 +36,11 @@ from backend.capture import dispatcher
 _CDP_DEST_MAC = b"\x01\x00\x0c\xcc\xcc\xcc"
 _CDP_SNAP_OUI = b"\x00\x00\x0c"
 _CDP_SNAP_PID = b"\x20\x00"
+_MAX_NEIGHBORS = 500
+_DEFAULT_STALE_AFTER = 60.0  # user-set: purge a neighbor entirely after 60s of silence
 
 _lock = threading.Lock()
-_neighbors: dict[str, dict] = {}
+_neighbors: dict[str, dict] = {}  # mac -> {..fields.., mac, last_seen}
 _started_interfaces: set[str] = set()
 
 
@@ -122,10 +132,16 @@ def _handle_packet(interface: str, packet: bytes) -> None:
     if oui != _CDP_SNAP_OUI or pid != _CDP_SNAP_PID:
         return
 
+    mac = ":".join(f"{b:02x}" for b in packet[6:12])
     neighbor = _parse_cdp_payload(packet[22:])
+    neighbor["mac"] = mac
     neighbor["last_seen"] = time.time()
     with _lock:
-        _neighbors[interface] = neighbor
+        _neighbors[mac] = neighbor
+        if len(_neighbors) > _MAX_NEIGHBORS:
+            oldest_mac = min(_neighbors, key=lambda m: _neighbors[m]["last_seen"])
+            if oldest_mac != mac:
+                del _neighbors[oldest_mac]
 
 
 def start_listener(interface: str = "eth0") -> None:
@@ -137,21 +153,21 @@ def start_listener(interface: str = "eth0") -> None:
     dispatcher.register_handler(lambda packet: _handle_packet(interface, packet))
 
 
-def get_neighbor(interface: str = "eth0", stale_after: float = 150.0) -> dict:
+def get_neighbors(interface: str = "eth0", stale_after: float = _DEFAULT_STALE_AFTER) -> dict:
     start_listener(interface)
 
+    now = time.time()
     with _lock:
-        neighbor = _neighbors.get(interface)
+        stale_macs = [mac for mac, n in _neighbors.items() if now - n["last_seen"] > stale_after]
+        for mac in stale_macs:
+            del _neighbors[mac]
+        neighbors = list(_neighbors.values())
 
-    if not neighbor:
-        return {"interface": interface, "present": False}
+    fresh = []
+    for neighbor in neighbors:
+        entry = dict(neighbor)
+        entry["age_seconds"] = int(now - neighbor["last_seen"])
+        fresh.append(entry)
+    fresh.sort(key=lambda n: n["age_seconds"])
 
-    age = time.time() - neighbor["last_seen"]
-    if age > stale_after:
-        return {"interface": interface, "present": False}
-
-    result = dict(neighbor)
-    result["interface"] = interface
-    result["present"] = True
-    result["age_seconds"] = int(age)
-    return result
+    return {"interface": interface, "present": len(fresh) > 0, "neighbors": fresh}

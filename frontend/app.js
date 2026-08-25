@@ -411,125 +411,187 @@ function applyEth0Static(event) {
   setEth0Mode("static", { address, gateway, dns });
 }
 
-async function loadLldp() {
-  const bodyEl = document.getElementById("lldp-body");
-  const emptyEl = document.getElementById("lldp-empty");
+// Shared by the LLDP/CDP/MNDP Dashboard cards: a single neighbor shows
+// as a plain <dl> (the familiar single-value view), two or more show
+// as a sortable <table> instead -- same underlying data either way,
+// just a friendlier view when there's only one thing to show. Sort
+// choice persists across polls per protocol (neighborSortState),
+// same idea as Traffic's Top Talkers table.
+const neighborSortState = {};
 
+function renderNeighborCard(prefix, neighbors, columns) {
+  const singleEl = document.getElementById(`${prefix}-single`);
+  const tableWrapEl = document.getElementById(`${prefix}-table-wrap`);
+  const bodyEl = document.getElementById(`${prefix}-body`);
+  const emptyEl = document.getElementById(`${prefix}-empty`);
+
+  if (neighbors.length === 0) {
+    singleEl.hidden = true;
+    tableWrapEl.hidden = true;
+    emptyEl.textContent = "no neighbors seen";
+    return;
+  }
+  emptyEl.textContent = "";
+
+  if (neighbors.length === 1) {
+    tableWrapEl.hidden = true;
+    singleEl.hidden = false;
+    const n = neighbors[0];
+    for (const col of columns) {
+      const el = document.getElementById(`${prefix}-single-${col.key}`);
+      if (el) el.textContent = col.format(n);
+    }
+    return;
+  }
+
+  singleEl.hidden = true;
+  tableWrapEl.hidden = false;
+
+  const sortState = neighborSortState[prefix] || { column: columns[0].key, direction: "asc" };
+  neighborSortState[prefix] = sortState;
+  const activeCol = columns.find((c) => c.key === sortState.column) || columns[0];
+
+  const sorted = [...neighbors].sort((a, b) => {
+    const av = activeCol.sortValue(a);
+    const bv = activeCol.sortValue(b);
+    if (typeof av === "string" || typeof bv === "string") {
+      return sortState.direction === "asc"
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
+    }
+    return sortState.direction === "asc" ? av - bv : bv - av;
+  });
+
+  bodyEl.innerHTML = "";
+  for (const n of sorted) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = columns.map((col) => `<td>${col.format(n)}</td>`).join("");
+    bodyEl.appendChild(tr);
+  }
+
+  document.querySelectorAll(`#${prefix}-table th[data-sort]`).forEach((th) => {
+    const active = th.dataset.sort === sortState.column;
+    th.classList.toggle("sorted", active);
+    th.classList.toggle("sorted-desc", active && sortState.direction === "desc");
+  });
+}
+
+function setupSortableNeighborHeaders(prefix, renderFn) {
+  document.querySelectorAll(`#${prefix}-table th[data-sort]`).forEach((th) => {
+    th.addEventListener("click", () => {
+      const column = th.dataset.sort;
+      const state = neighborSortState[prefix] || { column, direction: "asc" };
+      state.direction = state.column === column && state.direction === "asc" ? "desc" : "asc";
+      state.column = column;
+      neighborSortState[prefix] = state;
+      renderFn();
+    });
+  });
+}
+
+const lldpColumns = [
+  {
+    key: "system", format: (n) => n.system_name || n.system_description || "-",
+    sortValue: (n) => (n.system_name || n.system_description || "").toLowerCase(),
+  },
+  { key: "chassis", format: (n) => n.chassis_id || "-", sortValue: (n) => (n.chassis_id || "").toLowerCase() },
+  {
+    key: "port", format: (n) => n.port_description || n.port_id || "-",
+    sortValue: (n) => (n.port_description || n.port_id || "").toLowerCase(),
+  },
+  { key: "mgmt-ip", format: (n) => n.management_ip || "-", sortValue: (n) => n.management_ip || "" },
+  { key: "vlan", format: (n) => n.vlan ?? "-", sortValue: (n) => n.vlan ?? -1 },
+  { key: "age", format: (n) => `${n.age_seconds}s ago`, sortValue: (n) => n.age_seconds },
+];
+
+let lastLldpNeighbors = [];
+function renderLldp() {
+  renderNeighborCard("lldp", lastLldpNeighbors, lldpColumns);
+}
+
+async function loadLldp() {
   try {
     const res = await fetch("/api/discovery/lldp");
     const result = await res.json();
-    const neighbors = result.neighbors || [];
-
-    bodyEl.innerHTML = "";
-    if (neighbors.length === 0) {
-      emptyEl.textContent = "no neighbors seen";
-      return;
-    }
-
-    emptyEl.textContent = "";
-    for (const n of neighbors) {
-      const tr = document.createElement("tr");
-      const system = n.system_name || n.system_description || "-";
-      const port = n.port_description || n.port_id || "-";
-      tr.innerHTML = `
-        <td>${system}</td>
-        <td>${n.chassis_id || "-"}</td>
-        <td>${port}</td>
-        <td>${n.management_ip || "-"}</td>
-        <td>${n.vlan ?? "-"}</td>
-        <td>${n.age_seconds}s ago</td>
-      `;
-      bodyEl.appendChild(tr);
-    }
+    lastLldpNeighbors = result.neighbors || [];
+    renderLldp();
   } catch (err) {
-    emptyEl.textContent = "unreachable";
+    lastLldpNeighbors = [];
+    document.getElementById("lldp-empty").textContent = "unreachable";
+    document.getElementById("lldp-single").hidden = true;
+    document.getElementById("lldp-table-wrap").hidden = true;
   }
+}
+
+const cdpColumns = [
+  { key: "device-id", format: (n) => n.device_id || "-", sortValue: (n) => (n.device_id || "").toLowerCase() },
+  { key: "port-id", format: (n) => n.port_id || "-", sortValue: (n) => (n.port_id || "").toLowerCase() },
+  { key: "platform", format: (n) => n.platform || "-", sortValue: (n) => (n.platform || "").toLowerCase() },
+  {
+    key: "software-version", format: (n) => n.software_version || "-",
+    sortValue: (n) => (n.software_version || "").toLowerCase(),
+  },
+  { key: "native-vlan", format: (n) => n.native_vlan ?? "-", sortValue: (n) => n.native_vlan ?? -1 },
+  { key: "address", format: (n) => n.address || "-", sortValue: (n) => n.address || "" },
+  { key: "age", format: (n) => `${n.age_seconds}s ago`, sortValue: (n) => n.age_seconds },
+];
+
+let lastCdpNeighbors = [];
+function renderCdp() {
+  renderNeighborCard("cdp", lastCdpNeighbors, cdpColumns);
 }
 
 async function loadCdp() {
-  const statusEl = document.getElementById("cdp-status");
-  const deviceEl = document.getElementById("cdp-device");
-  const portEl = document.getElementById("cdp-port");
-  const platformEl = document.getElementById("cdp-platform");
-  const softwareEl = document.getElementById("cdp-software");
-  const vlanEl = document.getElementById("cdp-vlan");
-  const addressEl = document.getElementById("cdp-address");
-  const ageEl = document.getElementById("cdp-age");
-
   try {
     const res = await fetch("/api/discovery/cdp");
-    const cdp = await res.json();
-
-    if (!cdp.present) {
-      statusEl.textContent = "no neighbor seen";
-      statusEl.className = "";
-      deviceEl.textContent = "-";
-      portEl.textContent = "-";
-      platformEl.textContent = "-";
-      softwareEl.textContent = "-";
-      vlanEl.textContent = "-";
-      addressEl.textContent = "-";
-      ageEl.textContent = "-";
-      return;
-    }
-
-    statusEl.textContent = "neighbor found";
-    statusEl.className = "link-up";
-    deviceEl.textContent = cdp.device_id || "-";
-    portEl.textContent = cdp.port_id || "-";
-    platformEl.textContent = cdp.platform || "-";
-    softwareEl.textContent = cdp.software_version || "-";
-    vlanEl.textContent = cdp.native_vlan ?? "-";
-    addressEl.textContent = cdp.address || "-";
-    ageEl.textContent = `${cdp.age_seconds}s ago`;
+    const result = await res.json();
+    lastCdpNeighbors = result.neighbors || [];
+    renderCdp();
   } catch (err) {
-    statusEl.textContent = "unreachable";
-    statusEl.className = "";
+    lastCdpNeighbors = [];
+    document.getElementById("cdp-empty").textContent = "unreachable";
+    document.getElementById("cdp-single").hidden = true;
+    document.getElementById("cdp-table-wrap").hidden = true;
   }
 }
 
-async function loadMndp() {
-  const statusEl = document.getElementById("mndp-status");
-  const identityEl = document.getElementById("mndp-identity");
-  const platformEl = document.getElementById("mndp-platform");
-  const versionEl = document.getElementById("mndp-version");
-  const interfaceEl = document.getElementById("mndp-interface");
-  const addressEl = document.getElementById("mndp-address");
-  const macEl = document.getElementById("mndp-mac");
-  const uptimeEl = document.getElementById("mndp-uptime");
-  const ageEl = document.getElementById("mndp-age");
+const mndpColumns = [
+  { key: "identity", format: (n) => n.identity || "-", sortValue: (n) => (n.identity || "").toLowerCase() },
+  {
+    key: "platform-board", format: (n) => [n.platform, n.board].filter(Boolean).join(" / ") || "-",
+    sortValue: (n) => [n.platform, n.board].filter(Boolean).join(" / ").toLowerCase(),
+  },
+  { key: "version", format: (n) => n.version || "-", sortValue: (n) => (n.version || "").toLowerCase() },
+  {
+    key: "interface-name", format: (n) => n.interface_name || "-",
+    sortValue: (n) => (n.interface_name || "").toLowerCase(),
+  },
+  { key: "ipv4-address", format: (n) => n.ipv4_address || "-", sortValue: (n) => n.ipv4_address || "" },
+  { key: "mac", format: (n) => n.mac_address || n.mac || "-", sortValue: (n) => n.mac_address || n.mac || "" },
+  {
+    key: "uptime-seconds",
+    format: (n) => (n.uptime_seconds != null ? formatDuration(n.uptime_seconds) : "-"),
+    sortValue: (n) => n.uptime_seconds ?? -1,
+  },
+  { key: "age", format: (n) => `${n.age_seconds}s ago`, sortValue: (n) => n.age_seconds },
+];
 
+let lastMndpNeighbors = [];
+function renderMndp() {
+  renderNeighborCard("mndp", lastMndpNeighbors, mndpColumns);
+}
+
+async function loadMndp() {
   try {
     const res = await fetch("/api/discovery/mndp");
-    const mndp = await res.json();
-
-    if (!mndp.present) {
-      statusEl.textContent = "no neighbor seen";
-      statusEl.className = "";
-      identityEl.textContent = "-";
-      platformEl.textContent = "-";
-      versionEl.textContent = "-";
-      interfaceEl.textContent = "-";
-      addressEl.textContent = "-";
-      macEl.textContent = "-";
-      uptimeEl.textContent = "-";
-      ageEl.textContent = "-";
-      return;
-    }
-
-    statusEl.textContent = "neighbor found";
-    statusEl.className = "link-up";
-    identityEl.textContent = mndp.identity || "-";
-    platformEl.textContent = [mndp.platform, mndp.board].filter(Boolean).join(" / ") || "-";
-    versionEl.textContent = mndp.version || "-";
-    interfaceEl.textContent = mndp.interface_name || "-";
-    addressEl.textContent = mndp.ipv4_address || "-";
-    macEl.textContent = mndp.mac_address || "-";
-    uptimeEl.textContent = mndp.uptime_seconds != null ? formatDuration(mndp.uptime_seconds) : "-";
-    ageEl.textContent = `${mndp.age_seconds}s ago`;
+    const result = await res.json();
+    lastMndpNeighbors = result.neighbors || [];
+    renderMndp();
   } catch (err) {
-    statusEl.textContent = "unreachable";
-    statusEl.className = "";
+    lastMndpNeighbors = [];
+    document.getElementById("mndp-empty").textContent = "unreachable";
+    document.getElementById("mndp-single").hidden = true;
+    document.getElementById("mndp-table-wrap").hidden = true;
   }
 }
 
@@ -1076,6 +1138,10 @@ loadFieldValues("lanpi-mtr-config", ["mtr-host", "mtr-cycles"]);
 loadFieldValues("lanpi-tcp-test-config", ["tcp-test-host", "tcp-test-port"]);
 loadFieldValues("lanpi-capture-config", ["capture-duration", "capture-filter"]);
 layoutCards();
+
+setupSortableNeighborHeaders("lldp", renderLldp);
+setupSortableNeighborHeaders("cdp", renderCdp);
+setupSortableNeighborHeaders("mndp", renderMndp);
 
 loadAll();
 loadCaptureList();

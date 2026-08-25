@@ -171,6 +171,29 @@ def test_get_neighbors_excludes_stale_entries(monkeypatch):
     assert result["neighbors"] == []
 
 
+def test_get_neighbors_purges_stale_entries_from_the_cache_not_just_the_response(monkeypatch):
+    # User-set 2026-08-25: a neighbor unseen for 60s+ (the module's own
+    # default, not just this test's stale_after) should be removed
+    # outright, not merely hidden from the response while lingering in
+    # _neighbors forever.
+    lldp._neighbors.clear()
+    lldp._started_interfaces.clear()
+
+    times = iter([1000.0, 1100.0])  # one packet, then a read 100s later
+    monkeypatch.setattr(lldp.time, "time", lambda: next(times))
+    monkeypatch.setattr(lldp, "start_listener", lambda interface="eth0": None)
+
+    lldp._handle_packet("eth0", _eth_frame_from("aa:aa:aa:aa:aa:aa", 0x88CC, _tlv(5, b"gone")))
+
+    lldp.get_neighbors("eth0", stale_after=60.0)
+
+    assert lldp._neighbors == {}
+
+
+def test_default_stale_after_is_60_seconds():
+    assert lldp._DEFAULT_STALE_AFTER == 60.0
+
+
 def test_get_neighbors_present_false_with_no_neighbors(monkeypatch):
     lldp._neighbors.clear()
     lldp._started_interfaces.clear()
