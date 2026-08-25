@@ -132,6 +132,46 @@ def _parse_module_identification(frame: bytes) -> dict:
     return result
 
 
+# S7comm's standard DataItem return code, in the Read SZL response's
+# data section (first byte, right after the S7 header + parameter):
+# 0xFF is success; anything else means the request itself was
+# rejected (no SZL data follows in that case). Confirmed live
+# 2026-08-25 against a real S7-1200 (CPU 1214C): its module
+# identification (SZL 0x0011) succeeded, but the component
+# identification request (SZL 0x001c) came back with return code
+# 0x0a ("Object does not exist") and only 4 bytes of data -- that
+# specific CPU/firmware simply doesn't implement this SZL, not a
+# parsing bug (the field-extraction functions above already degrade
+# safely to all-None on a too-short frame; this just makes *why*
+# explicit instead of silently blank fields).
+_SZL_RETURN_CODE_SUCCESS = 0xFF
+_SZL_RETURN_CODE_MESSAGES = {
+    0x01: "hardware fault",
+    0x03: "accessing object not allowed",
+    0x05: "invalid address",
+    0x06: "data type not supported",
+    0x07: "data type inconsistent",
+    0x0A: "object does not exist -- SZL not implemented by this CPU",
+}
+
+
+def _szl_return_code(frame: bytes) -> int | None:
+    if len(frame) < 17:
+        return None
+    param_len = struct.unpack("!H", frame[13:15])[0]
+    data_offset = 17 + param_len
+    if data_offset >= len(frame):
+        return None
+    return frame[data_offset]
+
+
+def _szl_failure_message(frame: bytes) -> str | None:
+    code = _szl_return_code(frame)
+    if code is None or code == _SZL_RETURN_CODE_SUCCESS:
+        return None
+    return _SZL_RETURN_CODE_MESSAGES.get(code, f"SZL request failed (return code 0x{code:02x})")
+
+
 def _parse_component_identification(frame: bytes) -> dict:
     """SZL 0x001c response -- field offsets from nmap's s7-info.nse
     second_parse_response(). That function applies a +4 byte offset to
@@ -236,10 +276,16 @@ def identify(host: str, port: int = 102, timeout: float = 5.0) -> dict:
         sock.sendall(_READ_SZL_MODULE_IDENTIFICATION)
         module_frame = _recv_tpkt_frame(sock)
         module_info = _parse_module_identification(module_frame) if module_frame else {}
+        module_info["module_identification_error"] = (
+            _szl_failure_message(module_frame) if module_frame else "no response"
+        )
 
         sock.sendall(_READ_SZL_COMPONENT_IDENTIFICATION)
         component_frame = _recv_tpkt_frame(sock)
         component_info = _parse_component_identification(component_frame) if component_frame else {}
+        component_info["component_identification_error"] = (
+            _szl_failure_message(component_frame) if component_frame else "no response"
+        )
     except socket.timeout:
         return {"ok": False, "connected": False, "message": "timeout -- no response from device",
                 "response_time_ms": elapsed_ms()}

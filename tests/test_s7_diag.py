@@ -67,6 +67,40 @@ def test_cstring_returns_none_past_end_or_without_terminator():
     assert s7_diag._cstring(b"no null here", 0) is None
 
 
+# Real "Object does not exist" response captured live 2026-08-25 from a
+# real Siemens S7-1200 (CPU 1214C) -- it doesn't implement SZL 0x001c
+# (component identification), unlike the older S7-300 nmap's own
+# worked example is based on. Return code 0x0a, per the standard
+# S7comm DataItem return-code table.
+_REAL_SZL_NOT_SUPPORTED_FRAME = bytes.fromhex(
+    "0300002102f080320700000000000c000400011208128401010000d4010a000000"
+)
+
+
+def test_szl_return_code_reads_real_not_supported_response():
+    assert s7_diag._szl_return_code(_REAL_SZL_NOT_SUPPORTED_FRAME) == 0x0A
+
+
+def test_szl_failure_message_describes_real_not_supported_response():
+    message = s7_diag._szl_failure_message(_REAL_SZL_NOT_SUPPORTED_FRAME)
+    assert message == "object does not exist -- SZL not implemented by this CPU"
+
+
+def test_szl_failure_message_is_none_on_success_return_code():
+    frame = bytearray(_REAL_SZL_NOT_SUPPORTED_FRAME)
+    data_offset = 17 + 12  # header(17) + this frame's own param_len(12)
+    frame[data_offset] = s7_diag._SZL_RETURN_CODE_SUCCESS
+    assert s7_diag._szl_failure_message(bytes(frame)) is None
+
+
+def test_parse_component_identification_leaves_all_none_on_real_not_supported_response():
+    # The parser must degrade safely (no crash, no garbage strings)
+    # on this real short/error response -- the explicit error message
+    # comes from _szl_failure_message(), a separate concern.
+    result = s7_diag._parse_component_identification(_REAL_SZL_NOT_SUPPORTED_FRAME)
+    assert all(v is None for v in result.values())
+
+
 def test_parse_module_identification_matches_nmap_worked_example():
     frame = _frame(
         130,

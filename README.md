@@ -567,9 +567,9 @@ available to test against):
   DCP Identify-All scan; see `STATUS.md`). PROFINET *traffic*
   detection (passive, EtherType 0x8892) already existed separately on
   the Traffic page.
-* ~~Siemens S7 diagnostics~~ -- implemented (own page, `/s7.html`,
-  read-only CPU identification via COTP/S7comm + Read SZL; see
-  `STATUS.md`), **not yet live-verified against a real S7 PLC**.
+* ~~Siemens S7 diagnostics~~ -- implemented and **live-verified**
+  against a real S7-1200 (own page, `/s7.html`, read-only CPU
+  identification via COTP/S7comm + Read SZL; see `STATUS.md`).
 * Industrial device identification
 * BACnet (building automation) -- discovery/traffic detection, needs a
   real BACnet device (BMS controller, field device) to test against

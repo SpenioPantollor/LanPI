@@ -47,6 +47,16 @@ function renderResult(result) {
   document.getElementById("s7-copyright").textContent = result.copyright || "-";
   document.getElementById("s7-response-time").textContent =
     result.response_time_ms != null ? `${result.response_time_ms} ms` : "-";
+
+  const warningEl = document.getElementById("s7-partial-warning");
+  const errors = [result.module_identification_error, result.component_identification_error]
+    .filter(Boolean);
+  if (errors.length > 0) {
+    warningEl.hidden = false;
+    warningEl.textContent = `Some fields unavailable: ${errors.join("; ")}`;
+  } else {
+    warningEl.hidden = true;
+  }
 }
 
 async function runIdentify(event) {

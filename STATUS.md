@@ -191,13 +191,37 @@ offset when the echoed SZL-ID isn't 0x1c" quirk nmap's script applies
 from the protocol itself -- reproduced as-is, unexplained, same as the
 reference).
 
-**Not yet live-verified against a real S7 PLC** -- the two real
-Siemens devices seen on this segment during PROFINET testing were an
-S7-1200 and an S7-1500 PLCSIM (simulator) instance; neither was tried
-against this new tool in this session (PLCSIM in particular may not
-even implement the SZL identification service the same way real
-hardware does). Deploy and test against the real S7-1200 before
-trusting this feature -- see "Next steps" below.
+**Live-verified the same day against the real S7-1200 seen on this
+segment** -- module identification (SZL 0x0011) succeeded first try
+and returned real, correct-looking data: order number `6ES7
+214-1HG40-0XB0` (a real CPU 1214C part number format) and firmware
+`4.6.1`. One real bug found and fixed along the way: the first
+live attempt failed immediately with "Connection reset by peer" --
+this specific CPU hard-resets the TCP connection when it rejects the
+primary TSAP, instead of a clean COTP-level non-confirm the way
+nmap's reference implementation (tested against older S7-300/400
+gear) expects. `_open_and_negotiate_cotp()` previously let that
+`OSError` propagate straight out, aborting before the second TSAP was
+ever tried -- fixed to catch a connection-level error per attempt and
+still try the next TSAP, only re-raising if every attempt failed. The
+second TSAP then connected and negotiated cleanly.
+
+One further real finding, not a bug: this CPU's component
+identification request (SZL 0x001c) came back with S7comm return code
+`0x0a` ("Object does not exist") and only 4 bytes of data -- this
+specific CPU/firmware simply doesn't implement that SZL, unlike the
+older S7-300 CPU 315-2 DP nmap's script (and this module's field
+offsets) were originally validated against. The field-extraction
+functions already degraded safely to all-`None` on the resulting
+too-short frame (no crash, no garbage), but that alone looked
+indistinguishable from a parsing bug, so `_szl_return_code()`/
+`_szl_failure_message()` were added to detect and surface *why*
+explicitly (`module_identification_error`/
+`component_identification_error` in the API response, shown as a
+warning line on `/s7.html`) instead of silent blank fields. The real
+"Object does not exist" response is now a pytest fixture
+(`_REAL_SZL_NOT_SUPPORTED_FRAME`), captured live from the actual
+device.
 
 Also this session: checked whether PROFINET DCP or LLDP can already
 surface a PLC's exact model/firmware without S7comm. DCP cannot (its
@@ -968,6 +992,12 @@ from before this date, that history no longer exists.
   configured names against the scan's raw NameOfStation output, which
   is what confirmed the Siemens name-decoding heuristic in Summary
   above.
+- Siemens S7 CPU identification: **confirmed working against a real
+  S7-1200** — order number and firmware version came back correctly
+  on the second TSAP attempt (see Summary above for the connection-
+  reset bug this live test found and fixed, and the "SZL not
+  implemented by this CPU" finding for component identification).
+  Not yet tried against S7-300/400 or S7-1500 hardware.
 - Ping: **fully confirmed working** — one-shot (count=6, reached the
   target naturally, correct final stats), continuous (no count,
   stopped manually via the API, SIGINT path produced correct final
@@ -1414,9 +1444,13 @@ from before this date, that history no longer exists.
   `traffic_stats.py`'s `_talkers` dict -- not done yet, next up per
   "Next steps" below.
 - Siemens S7 CPU identification (`backend/tools/s7_diag.py`,
-  2026-08-25) is implemented and unit-tested against nmap's own
-  documented real-world example, but **not yet live-verified against
-  actual hardware** -- see Summary above.
+  2026-08-25) live-verified against a real S7-1200 -- module
+  identification works; component identification (SZL 0x001c) isn't
+  implemented by that specific CPU and now reports why explicitly
+  rather than showing blank fields. See Summary above. Not yet tried
+  against an S7-300/400 (the CPU family nmap's reference script and
+  this module's field offsets were originally built around) or an
+  S7-1500 -- only the S7-1200 has been confirmed live so far.
 
 Passive PROFINET/S7 traffic detection and the Kamstrup device
 templates work as designed and are covered by their own tests --
@@ -1503,14 +1537,15 @@ available to test against yet -- see "Next steps" below for those.
 
 - **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.
   Link event history, duplicate-IP detection, and rogue-DHCP detection
-  (V0.3 backlog items) are all complete. PROFINET DCP Identify-All scan
-  is implemented and live-verified against a real device. Siemens S7
-  CPU identification is implemented but NOT yet live-verified (see
-  Summary above) -- deploy and test against the real S7-1200 seen on
-  this segment before trusting it.** Also next: fix LLDP's
-  single-neighbor cache (see Known gaps) now that a real multi-device
-  segment exposed it, or the one remaining V0.3 backlog item (unified
-  device registry -- see README), whichever the maintainer
+  (V0.3 backlog items) are all complete. Both PROFINET DCP Identify-All
+  scan and Siemens S7 CPU identification are implemented and
+  live-verified against real devices (see Summary above) -- this
+  session's original industrial-protocol ask is done.** Next: fix
+  LLDP's single-neighbor cache (see Known gaps) now that a real
+  multi-device segment exposed it, try S7 identification against an
+  S7-300/400 or S7-1500 if one becomes available (only the S7-1200's
+  been confirmed so far), or the one remaining V0.3 backlog item
+  (unified device registry -- see README), whichever the maintainer
   prioritizes.
 - Try the new Modbus tabs and the three new dashboard cards (Link
   Event History, IP Conflict Detection, DHCP Server Detection) in a
