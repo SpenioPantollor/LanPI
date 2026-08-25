@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.api.routes._shared import TEST_PORT_INTERFACE
-from backend.tools import arp_scan, ip_scanner, port_scanner, tcp_test
+from backend.tools import arp_scan, ip_scanner, port_scanner, profinet_scan, tcp_test
 from backend.tools import mtr as mtr_tool
 from backend.tools import ping as ping_tool
 
@@ -107,3 +107,8 @@ def port_scan_status() -> dict:
 @router.post("/port-scan/stop")
 def port_scan_stop() -> dict:
     return port_scanner.stop()
+
+
+@router.post("/profinet-scan")
+def profinet_scan_run() -> dict:
+    return profinet_scan.scan(TEST_PORT_INTERFACE)

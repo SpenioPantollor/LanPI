@@ -1,6 +1,6 @@
 # LanPi — Project Status
 
-Last updated: 2026-08-22
+Last updated: 2026-08-25
 
 This file tracks what has actually been built and deployed, as a
 day-to-day companion to the long-term plan in `ARCHITECTURE.MD`.
@@ -35,10 +35,36 @@ TCP slave on the network**, not just the local test server used
 during development. The Kamstrup device templates (specific register
 addresses, float32 word order) are still unconfirmed against an
 actual Kamstrup meter, since that slave wasn't one -- protocol
-mechanics and register-map accuracy are separate claims. PROFINET
-DCP/traffic detection, S7 diagnostics, and industrial device ID are
-still open, deliberately deferred until real PLC hardware is available
-(maintainer's call, 2026-08-21) -- not started in this pass.
+mechanics and register-map accuracy are separate claims. S7
+diagnostics and industrial device ID are still open, deliberately
+deferred until real PLC hardware is available (maintainer's call,
+2026-08-21).
+
+**PROFINET DCP Identify-All scan implemented 2026-08-25**, first piece
+of the previously-deferred industrial protocol work, started at the
+maintainer's request. New `backend/tools/profinet_scan.py`: builds and
+sends a raw multicast DCP Identify request (dst MAC
+`01:0e:cf:00:00:00`, EtherType `0x8892`) over an `AF_PACKET` raw
+socket on eth0, then parses every Identify response for a bounded
+window (name of station, MAC, IP/subnet/gateway, vendor name, vendor/
+device ID, device role) -- read-only discovery only, no DCP Set
+(device reconfiguration) per ARCHITECTURE.MD Rule 5. Uses the
+`CAP_NET_RAW` ambient capability the service already has (see
+`system/lanpi.service`) -- no sudo, no new external binary dependency,
+works even with eth0 in Passive mode since DCP is a Layer-2-only
+protocol. Own page (`/profinet.html`, `frontend/profinet.js`),
+reachable from every page's nav bar. Frame layout (including the
+odd-length-block padding rule) verified against nmap's
+`multicast-profinet-discovery.nse` and Wireshark's `packet-pn-dcp.c`;
+8 new parser unit tests pass using a synthetic response frame matching
+that script's own real-world worked example (Siemens S7-300).
+**Not yet live-verified against a real PROFINET device** -- no such
+hardware was available this session; `socket.AF_PACKET` doesn't exist
+on macOS either, so even the send/receive path itself is untested
+outside a manual read of the code, only the pure frame-parsing logic
+has automated coverage. Passive PROFINET/S7 *traffic detection* (the
+Traffic page's EtherType/port heuristics) already existed separately
+and is unaffected.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
@@ -640,6 +666,12 @@ from before this date, that history no longer exists.
     `--localnet` when eth0 has an address, or an explicit network
     (works from Passive mode too). Unprivileged via the same
     `setcap cap_net_raw,cap_net_admin` pattern as `tcpdump`.
+  - `POST /api/tools/profinet-scan` — active PROFINET DCP Identify-All
+    scan on eth0 (`backend/tools/profinet_scan.py`, added 2026-08-25;
+    see Summary above for details, and Known gaps for its
+    not-yet-live-verified status). Hand-rolled raw `AF_PACKET` socket,
+    no external binary. Own page (`frontend/profinet.html`/
+    `profinet.js`).
   - `GET/POST /api/network/wifi*` — Wi-Fi client status/scan/connect/
     forget via `nmcli` (`backend/network/wifi.py`). Only ever touches
     `wlan0`.
@@ -697,8 +729,8 @@ from before this date, that history no longer exists.
   `system/99-lanpi-no-forward.conf` disables IP forwarding as
   defense-in-depth for ARCHITECTURE.MD Rule 3 (no bridge between
   `wlan0` and `eth0`), independent of hostapd/dnsmasq internals.
-- **Frontend**: six pages now (Dashboard, Traffic, IP Scanner, Port
-  Scanner, Modbus, Settings), navigated via a pill-button tab bar in the header (each
+- **Frontend**: seven pages now (Dashboard, Traffic, IP Scanner, Port
+  Scanner, PROFINET, Modbus, Settings), navigated via a pill-button tab bar in the header (each
   page's `<nav>` lists every page including itself, marked `.active`
   — replaced plain inline text links after user feedback that they
   read as an ambiguous run-on once there were more than two, with
@@ -1204,14 +1236,24 @@ from before this date, that history no longer exists.
 
 ## Known gaps
 
-PROFINET/S7 detection and the Kamstrup device templates work as
-designed and are covered by their own tests -- they're not listed here
-because nothing about them is broken or incomplete. The only thing
-pending is confirming their specific real-world values (an actual
-PROFINET/S7 device's traffic, an actual Kamstrup meter's register
-values) against hardware that hasn't been available to test against
-yet -- see "Next steps" below for those.
+Passive PROFINET/S7 traffic detection and the Kamstrup device
+templates work as designed and are covered by their own tests --
+they're not listed here because nothing about them is broken or
+incomplete. The only thing pending is confirming their specific
+real-world values (an actual PROFINET/S7 device's traffic, an actual
+Kamstrup meter's register values) against hardware that hasn't been
+available to test against yet -- see "Next steps" below for those.
 
+- **PROFINET DCP Identify-All scan (`profinet_scan.py`, 2026-08-25) is
+  untested beyond its pure-parser unit tests** -- no PROFINET device
+  and no Linux machine were available this session to exercise the
+  actual `AF_PACKET` send/receive path (unlike the parser logic,
+  `socket.AF_PACKET` doesn't exist on macOS at all, so this couldn't
+  even be smoke-tested locally the way other new backend code
+  normally is per this project's venv-testing discipline -- see
+  README). Deploy to the Pi and confirm the raw socket opens under
+  `CAP_NET_RAW` and a request actually goes out (tcpdump on the switch
+  port, even with no device to answer) before trusting this feature.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
@@ -1270,11 +1312,14 @@ yet -- see "Next steps" below for those.
 
 - **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.
   Link event history, duplicate-IP detection, and rogue-DHCP detection
-  (V0.3 backlog items) are all complete.** Next up is either V0.3
-  industrial protocol work (PROFINET/S7 -- deliberately deferred until
-  real PLC hardware is available) or the one remaining V0.3 backlog
-  item (unified device registry -- see README), whichever the
-  maintainer prioritizes.
+  (V0.3 backlog items) are all complete. PROFINET DCP Identify-All scan
+  is implemented but not yet live-verified (see Summary above) --
+  deploy to the Pi and test against a real PROFINET device (or at
+  least confirm the raw-socket send/receive path works at all on real
+  Linux/CAP_NET_RAW, independent of whether a device answers) before
+  trusting it.** After that: Siemens S7 diagnostics (the other half of
+  this session's ask), or the one remaining V0.3 backlog item (unified
+  device registry -- see README), whichever the maintainer prioritizes.
 - Try the new Modbus tabs and the three new dashboard cards (Link
   Event History, IP Conflict Detection, DHCP Server Detection) in a
   real browser against a real device -- not yet done (see Known gaps

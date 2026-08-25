@@ -562,7 +562,11 @@ these.
 **Industrial protocols** (deliberately deferred until real hardware is
 available to test against):
 
-* PROFINET DCP discovery and traffic detection
+* ~~PROFINET DCP discovery~~ -- implemented (own page, `/profinet.html`,
+  active DCP Identify-All scan; see `STATUS.md`), **not yet
+  live-verified against a real PROFINET device**. PROFINET *traffic*
+  detection (passive, EtherType 0x8892) already existed separately on
+  the Traffic page.
 * Siemens S7 diagnostics
 * Industrial device identification
 * BACnet (building automation) -- discovery/traffic detection, needs a
