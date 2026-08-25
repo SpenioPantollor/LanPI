@@ -219,29 +219,16 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card card-wide">
       <h2>Neighbors (LLDP)</h2>
       <p class="card-hint">
         Link Layer Discovery Protocol -- vendor-neutral, used by most
         switches/routers. Lists every distinct device seen (by source
         MAC), not just the most recent one -- behind a switch more
-        than one LLDP-speaking neighbor can be reachable at once.
+        than one LLDP-speaking neighbor can be reachable at once. An
+        entry is removed after 60s of silence.
       </p>
-      <dl id="lldp-single" hidden>
-        <dt>System</dt>
-        <dd id="lldp-single-system">-</dd>
-        <dt>Chassis ID</dt>
-        <dd id="lldp-single-chassis">-</dd>
-        <dt>Port</dt>
-        <dd id="lldp-single-port">-</dd>
-        <dt>Management IP</dt>
-        <dd id="lldp-single-mgmt-ip">-</dd>
-        <dt>VLAN</dt>
-        <dd id="lldp-single-vlan">-</dd>
-        <dt>Last seen</dt>
-        <dd id="lldp-single-age">-</dd>
-      </dl>
-      <div id="lldp-table-wrap" class="table-scroll" hidden>
+      <div id="lldp-table-wrap" class="table-scroll">
         <table id="lldp-table" class="data-table">
           <thead>
             <tr>
@@ -259,30 +246,15 @@
       <p id="lldp-empty" class="card-hint">checking...</p>
     </section>
 
-    <section class="card">
+    <section class="card card-wide">
       <h2>Neighbors (CDP)</h2>
       <p class="card-hint">
         Cisco Discovery Protocol -- Cisco-proprietary equivalent of
         LLDP. Lists every distinct device seen (by source MAC), not
-        just the most recent one.
+        just the most recent one. An entry is removed after 60s of
+        silence.
       </p>
-      <dl id="cdp-single" hidden>
-        <dt>Device ID</dt>
-        <dd id="cdp-single-device-id">-</dd>
-        <dt>Port</dt>
-        <dd id="cdp-single-port-id">-</dd>
-        <dt>Platform</dt>
-        <dd id="cdp-single-platform">-</dd>
-        <dt>Software</dt>
-        <dd id="cdp-single-software-version">-</dd>
-        <dt>Native VLAN</dt>
-        <dd id="cdp-single-native-vlan">-</dd>
-        <dt>Address</dt>
-        <dd id="cdp-single-address">-</dd>
-        <dt>Last seen</dt>
-        <dd id="cdp-single-age">-</dd>
-      </dl>
-      <div id="cdp-table-wrap" class="table-scroll" hidden>
+      <div id="cdp-table-wrap" class="table-scroll">
         <table id="cdp-table" class="data-table">
           <thead>
             <tr>
@@ -301,31 +273,14 @@
       <p id="cdp-empty" class="card-hint">checking...</p>
     </section>
 
-    <section class="card">
+    <section class="card card-wide">
       <h2>Neighbors (MNDP)</h2>
       <p class="card-hint">
         MikroTik Neighbor Discovery Protocol. Lists every distinct
-        device seen (by source MAC), not just the most recent one.
+        device seen (by source MAC), not just the most recent one. An
+        entry is removed after 60s of silence.
       </p>
-      <dl id="mndp-single" hidden>
-        <dt>Identity</dt>
-        <dd id="mndp-single-identity">-</dd>
-        <dt>Platform / Board</dt>
-        <dd id="mndp-single-platform-board">-</dd>
-        <dt>Version</dt>
-        <dd id="mndp-single-version">-</dd>
-        <dt>Interface</dt>
-        <dd id="mndp-single-interface-name">-</dd>
-        <dt>IPv4 Address</dt>
-        <dd id="mndp-single-ipv4-address">-</dd>
-        <dt>MAC Address</dt>
-        <dd id="mndp-single-mac">-</dd>
-        <dt>Uptime</dt>
-        <dd id="mndp-single-uptime-seconds">-</dd>
-        <dt>Last seen</dt>
-        <dd id="mndp-single-age">-</dd>
-      </dl>
-      <div id="mndp-table-wrap" class="table-scroll" hidden>
+      <div id="mndp-table-wrap" class="table-scroll">
         <table id="mndp-table" class="data-table">
           <thead>
             <tr>

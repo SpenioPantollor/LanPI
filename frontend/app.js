@@ -411,40 +411,26 @@ function applyEth0Static(event) {
   setEth0Mode("static", { address, gateway, dns });
 }
 
-// Shared by the LLDP/CDP/MNDP Dashboard cards: a single neighbor shows
-// as a plain <dl> (the familiar single-value view), two or more show
-// as a sortable <table> instead -- same underlying data either way,
-// just a friendlier view when there's only one thing to show. Sort
-// choice persists across polls per protocol (neighborSortState),
-// same idea as Traffic's Top Talkers table.
+// Shared by the LLDP/CDP/MNDP Dashboard cards: always a sortable
+// <table>, even for a single row -- these cards are usually looking
+// at more than one device, so the table stays the one consistent
+// view rather than switching shape at exactly 2 (user-decided
+// 2026-08-25, superseding an earlier single-vs-table design the same
+// day). Sort choice persists across polls per protocol
+// (neighborSortState), same idea as Traffic's Top Talkers table.
 const neighborSortState = {};
 
 function renderNeighborCard(prefix, neighbors, columns) {
-  const singleEl = document.getElementById(`${prefix}-single`);
   const tableWrapEl = document.getElementById(`${prefix}-table-wrap`);
   const bodyEl = document.getElementById(`${prefix}-body`);
   const emptyEl = document.getElementById(`${prefix}-empty`);
 
   if (neighbors.length === 0) {
-    singleEl.hidden = true;
     tableWrapEl.hidden = true;
     emptyEl.textContent = "no neighbors seen";
     return;
   }
   emptyEl.textContent = "";
-
-  if (neighbors.length === 1) {
-    tableWrapEl.hidden = true;
-    singleEl.hidden = false;
-    const n = neighbors[0];
-    for (const col of columns) {
-      const el = document.getElementById(`${prefix}-single-${col.key}`);
-      if (el) el.textContent = col.format(n);
-    }
-    return;
-  }
-
-  singleEl.hidden = true;
   tableWrapEl.hidden = false;
 
   const sortState = neighborSortState[prefix] || { column: columns[0].key, direction: "asc" };
@@ -518,7 +504,6 @@ async function loadLldp() {
   } catch (err) {
     lastLldpNeighbors = [];
     document.getElementById("lldp-empty").textContent = "unreachable";
-    document.getElementById("lldp-single").hidden = true;
     document.getElementById("lldp-table-wrap").hidden = true;
   }
 }
@@ -550,7 +535,6 @@ async function loadCdp() {
   } catch (err) {
     lastCdpNeighbors = [];
     document.getElementById("cdp-empty").textContent = "unreachable";
-    document.getElementById("cdp-single").hidden = true;
     document.getElementById("cdp-table-wrap").hidden = true;
   }
 }
@@ -590,7 +574,6 @@ async function loadMndp() {
   } catch (err) {
     lastMndpNeighbors = [];
     document.getElementById("mndp-empty").textContent = "unreachable";
-    document.getElementById("mndp-single").hidden = true;
     document.getElementById("mndp-table-wrap").hidden = true;
   }
 }
@@ -1095,6 +1078,13 @@ document.getElementById("capture-stop-btn").addEventListener("click", stopCaptur
 // height changed (that was reshuffling every card's position after
 // things like an ARP scan) -- only its vertical offset within its own
 // column does, and only its own column's cards shift as a result.
+//
+// A card marked .card-wide (the LLDP/CDP/MNDP neighbor tables, which
+// usually hold more than one row and want the room -- user-requested
+// 2026-08-25) spans 2 columns instead of 1: it takes the current
+// round-robin position and the next, and advances past both. Falls
+// back to a normal 1-column card when there's only 1 column to begin
+// with (narrow viewport) -- nothing to span into.
 function layoutCards() {
   const container = document.querySelector("main");
   const cards = Array.from(container.querySelectorAll(".card"));
@@ -1115,12 +1105,30 @@ function layoutCards() {
   const colWidth = (containerWidth - (columns - 1) * gap) / columns;
 
   const colHeights = new Array(columns).fill(0);
-  cards.forEach((card, i) => {
-    const col = i % columns;
-    card.style.width = `${colWidth}px`;
-    card.style.left = `${col * (colWidth + gap)}px`;
-    card.style.top = `${colHeights[col]}px`;
-    colHeights[col] += card.offsetHeight + gap;
+  let nextCol = 0;
+  cards.forEach((card) => {
+    const wantsWide = card.classList.contains("card-wide") && columns >= 2;
+    const span = wantsWide ? 2 : 1;
+    let startCol = nextCol % columns;
+    if (span === 2 && startCol === columns - 1) {
+      startCol = 0; // don't let a 2-wide card overflow past the last column
+    }
+
+    if (span === 1) {
+      card.style.width = `${colWidth}px`;
+      card.style.left = `${startCol * (colWidth + gap)}px`;
+      card.style.top = `${colHeights[startCol]}px`;
+      colHeights[startCol] += card.offsetHeight + gap;
+    } else {
+      const top = Math.max(colHeights[startCol], colHeights[startCol + 1]);
+      card.style.width = `${colWidth * 2 + gap}px`;
+      card.style.left = `${startCol * (colWidth + gap)}px`;
+      card.style.top = `${top}px`;
+      const newHeight = top + card.offsetHeight + gap;
+      colHeights[startCol] = newHeight;
+      colHeights[startCol + 1] = newHeight;
+    }
+    nextCol = startCol + span;
   });
 
   container.style.height = `${Math.max(...colHeights) - gap}px`;

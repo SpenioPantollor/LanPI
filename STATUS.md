@@ -275,20 +275,38 @@ hit them the moment it did. All three (`GET /api/discovery/{lldp,cdp,
 mndp}`) also now purge a neighbor from the cache outright once it's
 gone unseen for 60s (`_DEFAULT_STALE_AFTER`, dropped from the earlier
 150s default), rather than just excluding it from that one response
-while it lingers in memory. Dashboard cards for all three: exactly one
-neighbor still renders as the familiar `<dl>` single-value view (less
-visual noise for the common case); two or more switches to a table
-instead -- same underlying data, just a friendlier presentation when
-there's only one thing to show. Every table column is sortable
-(click a header to sort by it, click again to reverse), same
-click-to-sort/`sorted`/`sorted-desc` CSS pattern already used by
-Traffic's Top Talkers table, factored into one shared
-`renderNeighborCard()`/`setupSortableNeighborHeaders()` pair in
-`app.js` (the three protocols only differ in their column list, not
-the single-vs-table/sort mechanics, so a shared helper was the
-right call here -- unlike e.g. IP Scanner vs Port Scanner, which
-stay separate despite superficial similarity because their
-underlying tools/semantics genuinely differ).
+while it lingers in memory. Every table column is sortable (click a
+header to sort by it, click again to reverse), same click-to-sort/
+`sorted`/`sorted-desc` CSS pattern already used by Traffic's Top
+Talkers table, factored into one shared `renderNeighborCard()`/
+`setupSortableNeighborHeaders()` pair in `app.js` (the three
+protocols only differ in their column list, not the sort mechanics,
+so a shared helper was the right call here -- unlike e.g. IP Scanner
+vs Port Scanner, which stay separate despite superficial similarity
+because their underlying tools/semantics genuinely differ).
+
+**Single-vs-table view reconsidered and simplified, same session**:
+the first cut showed a plain `<dl>` for exactly one neighbor and only
+switched to a table at two or more. Reconsidered almost immediately
+(user's own second thought) -- a discovery card will usually have
+more than one device, so a shape that changes at exactly 2 is more
+surprising than useful. Simplified to always render the table, even
+for a single row, and removed the now-dead `<dl id="{prefix}-single">`
+markup and its per-field population code entirely rather than leaving
+it as unused dead weight. The three cards are also now double-width
+(`.card-wide` on the `<section>`, read by `layoutCards()` in
+`app.js`) so the wider table actually has room -- the fixed-column
+masonry (see that function's own comment for why it's fixed-assignment
+rather than shortest-column packing) previously had no notion of a
+card spanning more than one column; extended to support a 2-column
+span, falling back to 1 column on a narrow (single-column) viewport
+where there's nothing to span into. One accepted rough edge: 3
+consecutive wide cards (LLDP/CDP/MNDP are exactly that) landing in a
+layout with exactly 3 total columns will all wrap into the same 2
+columns rather than using the 3rd, leaving it briefly empty until the
+next (normal-width) card fills it -- a real but minor packing
+inefficiency, not a bug (no overlap, nothing broken), consistent with
+this masonry's already-documented "simple over optimal" philosophy.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
