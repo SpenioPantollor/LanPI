@@ -335,6 +335,25 @@ to these three tables by ID, not applied to `.data-table` globally --
 the other tables' nowrap-plus-horizontal-scroll behavior is
 unaffected and wasn't asked to change.
 
+**Per-column widths tuned, same session** (user-requested, looking at
+the live LLDP table specifically): `table-layout: fixed` alone
+distributes width evenly across columns, which put as much room
+behind `VLAN`/`Last seen` (short, bounded content -- a few digits, or
+"Ns ago") as behind `Management IP` (needs enough room that its own
+header text doesn't wrap). Added a `<colgroup>` with explicit
+per-column `<col style="width: N%">` to each of the three tables --
+the standard technique for asserting column widths under
+`table-layout: fixed`, since without it column width falls out of the
+browser's own distribution rather than being specifiable in CSS
+alone. LLDP: VLAN 6%, Last seen 9%, Management IP 22% (up from an
+even 16.7%), System/Chassis/Port taking the rest. CDP and MNDP tuned
+the same way by the same reasoning (their own short/fixed-format
+columns -- Native VLAN, Uptime, Last seen -- narrowed; free-text/
+address columns kept fuller) even though the user was looking at LLDP
+specifically, for consistency across the three -- exact percentages
+are a first pass, not measured against real rendered content, revisit
+if any column still wraps its own header or clips real data.
+
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
 read into a full diagnostic toolset: Device Identification (FC43/
