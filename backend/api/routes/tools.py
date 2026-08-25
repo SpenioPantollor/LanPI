@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.api.routes._shared import TEST_PORT_INTERFACE
-from backend.tools import arp_scan, ip_scanner, port_scanner, profinet_scan, tcp_test
+from backend.tools import arp_scan, ip_scanner, port_scanner, profinet_scan, s7_diag, tcp_test
 from backend.tools import mtr as mtr_tool
 from backend.tools import ping as ping_tool
 
@@ -112,3 +112,13 @@ def port_scan_stop() -> dict:
 @router.post("/profinet-scan")
 def profinet_scan_run() -> dict:
     return profinet_scan.scan(TEST_PORT_INTERFACE)
+
+
+class S7IdentifyRequest(BaseModel):
+    host: str
+    port: Optional[int] = 102
+
+
+@router.post("/s7/identify")
+def s7_identify(body: S7IdentifyRequest) -> dict:
+    return s7_diag.identify(body.host, body.port or 102)

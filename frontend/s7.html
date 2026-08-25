@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>LanPi IP Scanner</title>
+  <title>LanPi S7</title>
   <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
   <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
   <link rel="shortcut icon" href="/favicon/favicon.ico" />
@@ -31,8 +31,8 @@
       <div class="brand">
         <img src="/logo.png" alt="LanPi" class="brand-logo" />
         <div>
-        <h1>IP Scanner</h1>
-        <p class="subtitle">Host discovery on eth0</p>
+        <h1>Siemens S7</h1>
+        <p class="subtitle">Read-only CPU identification on eth0</p>
         <div id="active-tasks-badge" class="active-tasks-badge" hidden>
           <span class="active-tasks-dot"></span>
           <span id="active-tasks-label"></span>
@@ -42,11 +42,11 @@
       <nav>
         <a href="/">Dashboard</a>
         <a href="/traffic.html">Traffic</a>
-        <a href="/ip-scanner.html" class="active">IP Scanner</a>
+        <a href="/ip-scanner.html">IP Scanner</a>
         <a href="/port-scanner.html">Port Scanner</a>
         <a href="/profinet.html">PROFINET</a>
         <a href="/modbus.html">Modbus</a>
-        <a href="/s7.html">S7</a>
+        <a href="/s7.html" class="active">S7</a>
         <a href="/settings.html">Settings</a>
       </nav>
     </div>
@@ -56,23 +56,46 @@
 
   <main class="stacked-cards">
     <section class="card">
-      <h2>Scan</h2>
+      <h2>CPU Identification</h2>
       <p class="card-hint">
-        Ping-sweep host discovery via nmap (ICMP/ARP/TCP probes
-        combined) &mdash; needs eth0 in DHCP or Static mode. Different
-        from ARP Scan on the Dashboard: takes an explicit range and
-        works across probe types, not just ARP.
+        Sourced from eth0 &mdash; needs DHCP or Static mode. Connects
+        over the S7comm/COTP handshake (TCP port 102, same as any S7
+        programming/HMI tool) and reads the CPU's own System Status
+        List (module type, order number, firmware version, serial
+        number, plant ID) &mdash; identification only. No process data
+        (DB) read/write, no PLC start/stop &mdash; LanPi defaults to
+        passive, non-disruptive diagnostics.
       </p>
-      <form id="ip-scan-form">
-        <label for="ip-scan-target">Network or range (CIDR)</label>
-        <input id="ip-scan-target" type="text" placeholder="192.168.20.0/24" autocomplete="off" />
-        <div class="button-row">
-          <button id="ip-scan-start-btn" type="submit">Scan</button>
-          <button id="ip-scan-stop-btn" type="button" disabled>Stop</button>
-        </div>
+      <form id="s7-form">
+        <label for="s7-host">Host or IP</label>
+        <input id="s7-host" type="text" placeholder="192.168.0.100" autocomplete="off" />
+        <label for="s7-port">Port</label>
+        <input id="s7-port" type="number" min="1" max="65535" placeholder="102" autocomplete="off" />
+        <button id="s7-identify-btn" type="submit">Identify</button>
       </form>
-      <p id="ip-scan-status" class="card-hint"></p>
-      <ul id="ip-scan-results" class="wifi-list"></ul>
+      <p id="s7-status" class="card-hint"></p>
+      <dl id="s7-result" hidden>
+        <dt>Connected</dt>
+        <dd id="s7-connected">-</dd>
+        <dt>Module</dt>
+        <dd id="s7-module">-</dd>
+        <dt>Basic Hardware</dt>
+        <dd id="s7-basic-hardware">-</dd>
+        <dt>Firmware Version</dt>
+        <dd id="s7-version">-</dd>
+        <dt>System Name</dt>
+        <dd id="s7-system-name">-</dd>
+        <dt>Module Type</dt>
+        <dd id="s7-module-type">-</dd>
+        <dt>Serial Number</dt>
+        <dd id="s7-serial-number">-</dd>
+        <dt>Plant Identification</dt>
+        <dd id="s7-plant-id">-</dd>
+        <dt>Copyright</dt>
+        <dd id="s7-copyright">-</dd>
+        <dt>Response Time</dt>
+        <dd id="s7-response-time">-</dd>
+      </dl>
     </section>
   </main>
 
@@ -81,6 +104,6 @@
     <p id="footer-date">-</p>
   </footer>
 
-  <script src="ip-scanner.js"></script>
+  <script src="s7.js"></script>
 </body>
 </html>

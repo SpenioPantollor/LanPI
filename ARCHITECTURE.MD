@@ -864,10 +864,15 @@ coarse long-term summary.
 [x] IP scanner
 [x] Port scanner (range scan -- distinct from the single TCP port test above)
 [x] PROFINET DCP Identify-All active scan (own page, `/profinet.html`,
-    `backend/tools/profinet_scan.py`) -- not yet live-verified against
-    real hardware. Passive traffic detection already existed
+    `backend/tools/profinet_scan.py`) -- live-verified against real
+    Siemens hardware. Passive traffic detection already existed
     separately in the traffic analyzer above. DCP Set (device
     reconfiguration) is out of scope per Rule 5.
 [x] Modbus TCP (read-only: coils, discrete inputs, holding/input
     registers; device templates for known meters)
+[x] Siemens S7 CPU identification (own page, `/s7.html`,
+    `backend/tools/s7_diag.py`, COTP/S7comm + Read SZL) -- not yet
+    live-verified against real hardware. Identification only (module
+    type, order number, firmware version, serial number, plant ID) --
+    no DB/process-data read-write, no PLC start/stop.
 ```

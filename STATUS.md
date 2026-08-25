@@ -161,6 +161,58 @@ suggested middle ground) once there's been more real-world
 confirmation, or leave it API-only for anyone who wants to read
 `name_of_station_decoded` directly.
 
+**Siemens S7 CPU identification implemented 2026-08-25**, second and
+final piece of this session's industrial-protocol ask (the other
+being PROFINET DCP above). New `backend/tools/s7_diag.py`, own page
+`/s7.html`: opens a TCP connection to port 102 (sourced from eth0,
+same `SO_BINDTODEVICE`-plus-address-bind pattern as tcp_test.py/
+modbus.py), negotiates a COTP connection (trying rack0/slot2 TSAP
+first, a second TSAP pairing as fallback for other CPU families),
+sends the standard S7comm "Setup Communication" job, then reads the
+CPU's own System Status List (SZL) via two "Read SZL" requests (SZL-ID
+0x0011 for module/order-number/firmware-version, SZL-ID 0x001c for
+system name/module type/serial number/plant ID/copyright) --
+identification only, the S7 equivalent of Modbus's Device
+Identification (FC43): no DB/process-data read or write, no PLC
+start/stop. Hand-rolled, no `python-snap7` dependency, consistent with
+this project's other protocol clients.
+
+S7comm isn't officially published by Siemens, so the exact COTP/
+Setup-Communication/Read-SZL byte sequences and the SZL response field
+offsets are taken verbatim from nmap's `s7-info.nse` -- a real-world
+tested reference implementation (the same approach used for
+PROFINET's `multicast-profinet-discovery.nse` above) -- rather than
+derived by hand. Parser unit tests use that script's own documented
+worked example (a Siemens CPU 315-2 DP: `Basic Hardware: 6ES7
+315-2AG10-0AB0`, `Version: 2.6.9`, `Module Type: CPU 315-2 DP`, etc.)
+as fixture values, including the empirically-discovered "+4 byte
+offset when the echoed SZL-ID isn't 0x1c" quirk nmap's script applies
+(a real CPU-family firmware-layout difference, not something derivable
+from the protocol itself -- reproduced as-is, unexplained, same as the
+reference).
+
+**Not yet live-verified against a real S7 PLC** -- the two real
+Siemens devices seen on this segment during PROFINET testing were an
+S7-1200 and an S7-1500 PLCSIM (simulator) instance; neither was tried
+against this new tool in this session (PLCSIM in particular may not
+even implement the SZL identification service the same way real
+hardware does). Deploy and test against the real S7-1200 before
+trusting this feature -- see "Next steps" below.
+
+Also this session: checked whether PROFINET DCP or LLDP can already
+surface a PLC's exact model/firmware without S7comm. DCP cannot (its
+Device Properties blocks carry a vendor/device *type* string like
+"S7-1200" and numeric vendor/device IDs, not a firmware version or
+exact order number). LLDP theoretically could (many industrial
+devices put exactly this in the System Description TLV) but a live
+`tcpdump` filtered to the real S7-1200's MAC, run twice (8s then 35s),
+saw **zero** LLDP frames from it -- LLDP's "nearest bridge" multicast
+scope (`01:80:c2:00:00:0e`) often isn't forwarded past one switch hop,
+unlike PROFINET DCP's own multicast group, so a PLC not directly
+link-adjacent to eth0 can be invisible to LLDP while still answering
+DCP. This is also what surfaced the LLDP single-neighbor-cache issue
+noted below.
+
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
 read into a full diagnostic toolset: Device Identification (FC43/
@@ -763,10 +815,15 @@ from before this date, that history no longer exists.
     `setcap cap_net_raw,cap_net_admin` pattern as `tcpdump`.
   - `POST /api/tools/profinet-scan` — active PROFINET DCP Identify-All
     scan on eth0 (`backend/tools/profinet_scan.py`, added 2026-08-25;
-    see Summary above for details, and Known gaps for its
-    not-yet-live-verified status). Hand-rolled raw `AF_PACKET` socket,
-    no external binary. Own page (`frontend/profinet.html`/
+    live-verified, see Summary above). Hand-rolled raw `AF_PACKET`
+    socket, no external binary. Own page (`frontend/profinet.html`/
     `profinet.js`).
+  - `POST /api/tools/s7/identify` — read-only Siemens S7 CPU
+    identification over COTP/S7comm on port 102
+    (`backend/tools/s7_diag.py`, added 2026-08-25; see Summary above
+    for details, and Known gaps for its not-yet-live-verified status).
+    Hand-rolled, no external binary. Own page (`frontend/s7.html`/
+    `s7.js`).
   - `GET/POST /api/network/wifi*` — Wi-Fi client status/scan/connect/
     forget via `nmcli` (`backend/network/wifi.py`). Only ever touches
     `wlan0`.
@@ -824,8 +881,8 @@ from before this date, that history no longer exists.
   `system/99-lanpi-no-forward.conf` disables IP forwarding as
   defense-in-depth for ARCHITECTURE.MD Rule 3 (no bridge between
   `wlan0` and `eth0`), independent of hostapd/dnsmasq internals.
-- **Frontend**: seven pages now (Dashboard, Traffic, IP Scanner, Port
-  Scanner, PROFINET, Modbus, Settings), navigated via a pill-button tab bar in the header (each
+- **Frontend**: eight pages now (Dashboard, Traffic, IP Scanner, Port
+  Scanner, PROFINET, Modbus, S7, Settings), navigated via a pill-button tab bar in the header (each
   page's `<nav>` lists every page including itself, marked `.active`
   — replaced plain inline text links after user feedback that they
   read as an ambiguous run-on once there were more than two, with
@@ -1343,6 +1400,24 @@ from before this date, that history no longer exists.
 
 ## Known gaps
 
+- **LLDP only caches one neighbor per interface**
+  (`backend/discovery/lldp.py`'s `_neighbors: dict[str, dict]`, keyed
+  by interface, not by source MAC) -- discovered live 2026-08-25:
+  with multiple LLDP-sending devices actually reachable through the
+  test switch (an engineering PC and a Siemens device both seen),
+  the Dashboard's LLDP card visibly flickered/jumped between them,
+  each overwriting the other's cached entry every time a new frame
+  arrived. Pre-existing design limitation (this module was written
+  assuming "one directly-connected switch," LLDP/CDP/MNDP's original
+  common case), not a regression from anything this session touched.
+  Fix is a multi-neighbor table keyed by source MAC, same shape as
+  `traffic_stats.py`'s `_talkers` dict -- not done yet, next up per
+  "Next steps" below.
+- Siemens S7 CPU identification (`backend/tools/s7_diag.py`,
+  2026-08-25) is implemented and unit-tested against nmap's own
+  documented real-world example, but **not yet live-verified against
+  actual hardware** -- see Summary above.
+
 Passive PROFINET/S7 traffic detection and the Kamstrup device
 templates work as designed and are covered by their own tests --
 they're not listed here because nothing about them is broken or
@@ -1429,10 +1504,14 @@ available to test against yet -- see "Next steps" below for those.
 - **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.
   Link event history, duplicate-IP detection, and rogue-DHCP detection
   (V0.3 backlog items) are all complete. PROFINET DCP Identify-All scan
-  is implemented and live-verified against a real device (see
-  Summary above).** Next: Siemens S7 diagnostics (the other half of
-  this session's ask), or the one remaining V0.3 backlog item (unified
-  device registry -- see README), whichever the maintainer prioritizes.
+  is implemented and live-verified against a real device. Siemens S7
+  CPU identification is implemented but NOT yet live-verified (see
+  Summary above) -- deploy and test against the real S7-1200 seen on
+  this segment before trusting it.** Also next: fix LLDP's
+  single-neighbor cache (see Known gaps) now that a real multi-device
+  segment exposed it, or the one remaining V0.3 backlog item (unified
+  device registry -- see README), whichever the maintainer
+  prioritizes.
 - Try the new Modbus tabs and the three new dashboard cards (Link
   Event History, IP Conflict Detection, DHCP Server Detection) in a
   real browser against a real device -- not yet done (see Known gaps
