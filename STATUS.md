@@ -354,6 +354,76 @@ specifically, for consistency across the three -- exact percentages
 are a first pass, not measured against real rendered content, revisit
 if any column still wraps its own header or clips real data.
 
+**Modbus Traffic table headers labeled Master/Slave alongside
+Client/Server (2026-08-25)**, user-requested for clarity: classic
+Modbus terminology is Master/Slave, not the modern Client/Server
+naming this codebase otherwise uses consistently. `modbus.html`'s
+Traffic tab headers now read "Client (Master)" / "Server (Slave)" —
+cosmetic only, no backend change.
+
+**S7 "Read Tag" (process-data read) implemented 2026-08-25**, second
+S7comm capability alongside CPU identification above: reads a single
+DB/M/I/Q value via the standard "Read Var" service (function 0x04,
+S7ANY addressing) — e.g. DB5.DBW10 or M0.3 — the S7 equivalent of a
+Modbus register read. New `read_tag()` in `s7_diag.py`, own "Read Tag"
+card on `/s7.html`, `POST /api/tools/s7/read-tag`. Supports areas I/Q/M/
+DB and types BIT/BYTE/WORD/INT/DWORD/DINT/REAL; DB number required for
+area DB, bit offset (0-7) required for type BIT. Still strictly
+read-only — deliberately no Write Var, consistent with this project's
+non-disruptive-diagnostics-only stance (see the identify() docstring
+above).
+
+Like identify(), S7comm's Read Var wire format isn't officially
+published by Siemens, so `_build_read_var_request()`'s item layout
+(transport size, count, DB number, area code, bit-granular address)
+follows the same convention every open-source S7 client (Snap7,
+libnodave, python-snap7) uses: BIT reads get transport size 0x01 with
+a bit-granular address; every other type collapses to transport size
+0x02 (BYTE) with count = the type's byte size (WORD/INT=2,
+DWORD/DINT/REAL=4). Cross-checked byte-for-byte against a known
+real-world worked example (reading DB1 byte offset 4 as BYTE) — the
+request builder produces the exact same bytes. Response parsing reuses
+`_parse_read_var_response()`'s `17 + param_len` data-section offset,
+the same general S7-header fact `_szl_return_code()` already relies on
+for SZL responses, and the same `_SZL_RETURN_CODE_MESSAGES` table for
+failure reporting (0xFF success, 0x0A object does not exist, etc. —
+one S7comm-wide DataItem return-code table, not SZL-specific). Not yet
+live-verified against a real PLC's actual DB/M/I/Q content (blocked by
+the sudoers gap below at the time this was written) — see Known gaps.
+
+**Root cause of the recurring "passwordless sudo sometimes doesn't
+work" flakiness found and fixed 2026-08-25**: after the Pi froze and
+needed a physical power-cycle (ext4 "orphan cleanup on readonly fs" at
+the next boot confirmed an unclean shutdown, though no crash-cause logs
+survived it — `/var/log/journal` had no persistent storage across the
+reboot), the user hit a live "Failed to set eth0 to static: sudo: a
+password is required" error trying to test the new Read Tag feature.
+Investigating turned up the actual root cause of every "inconsistent
+sudo" observation earlier this session (see the Hardware access
+memory correction): **`/etc/sudoers.d/` on the Pi never actually had a
+lanpi-specific NOPASSWD entry** — `backend/shell.py`'s
+`run_privileged()` comment ("passwordless for this user, see
+system/install.sh") was aspirational, not true; `install.sh` never
+wrote one. Every earlier "it worked" observation was really sudo's own
+~15-minute credential-timestamp cache getting refreshed by an
+interactive `ssh ... sudo -n ...` run moments earlier in the same
+session — which a systemd service with no tty can never establish on
+its own, so it was bound to fail unpredictably in real unattended use.
+
+**Fixed properly, not just patched on this one Pi**: new
+`system/lanpi-backend-sudoers.template` (least-privilege — pinned to
+the exact binaries/subcommands `backend/network/*.py` and the deploy
+workflow invoke: `nmcli`, the hostapd-config `cp`, `systemctl restart
+hostapd`/`lanpi.service`, the two `lanpi-ap-{up,down}.sh` scripts — not
+a blanket `NOPASSWD:ALL`), installed by `install.sh` to
+`/etc/sudoers.d/lanpi-backend` (mode 0440, root:root) with its
+`__REPO_DIR__` placeholder substituted to the real install path.
+Validated with `visudo -cf` on a scratch file *before* it ever touches
+`/etc/sudoers.d` — a malformed file placed there directly risks
+breaking sudo for everyone. This makes every earlier "passwordless
+sudo" fix in this file (eth0 IP mode, AP up/down, wifi connect/forget)
+actually reliable going forward instead of session-cache-dependent.
+
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
 read into a full diagnostic toolset: Device Identification (FC43/
@@ -974,8 +1044,13 @@ from before this date, that history no longer exists.
     identification over COTP/S7comm on port 102
     (`backend/tools/s7_diag.py`, added 2026-08-25; see Summary above
     for details, and Known gaps for its not-yet-live-verified status).
-    Hand-rolled, no external binary. Own page (`frontend/s7.html`/
-    `s7.js`).
+    Hand-rolled, no external binary.
+  - `POST /api/tools/s7/read-tag` — read-only S7 process-data read
+    (Read Var, S7ANY addressing: area I/Q/M/DB, byte/bit offset, type
+    BIT/BYTE/WORD/INT/DWORD/DINT/REAL) (`backend/tools/s7_diag.py`,
+    added 2026-08-25; see Summary above, and Known gaps for its
+    not-yet-live-verified status). Own page (`frontend/s7.html`/
+    `s7.js`) with separate CPU Identification and Read Tag cards.
   - `GET/POST /api/network/wifi*` — Wi-Fi client status/scan/connect/
     forget via `nmcli` (`backend/network/wifi.py`). Only ever touches
     `wlan0`.
@@ -1566,6 +1641,14 @@ from before this date, that history no longer exists.
   against an S7-300/400 (the CPU family nmap's reference script and
   this module's field offsets were originally built around) or an
   S7-1500 -- only the S7-1200 has been confirmed live so far.
+- S7 "Read Tag" (`read_tag()` in the same module, 2026-08-25) is
+  cross-checked byte-for-byte against a known real-world Read Var
+  request example and unit-tested, but **not yet live-verified against
+  a real PLC's actual DB/M/I/Q content** -- the request/response frame
+  structure is well-established (same convention every open-source S7
+  client uses), but an actual read against real process data hasn't
+  been tried yet. Do that before relying on it for anything beyond a
+  quick sanity check.
 
 Passive PROFINET/S7 traffic detection and the Kamstrup device
 templates work as designed and are covered by their own tests --

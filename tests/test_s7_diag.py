@@ -3,6 +3,8 @@
 s7-info.nse uses, translated from its 1-indexed Lua offsets). Fixture
 values match that script's own documented real-world example output
 (a Siemens CPU 315-2 DP)."""
+import struct
+
 from backend.tools import s7_diag
 
 
@@ -204,3 +206,122 @@ def test_open_and_negotiate_cotp_reraises_when_every_attempt_errors(monkeypatch)
         assert False, "expected ConnectionRefusedError to propagate"
     except ConnectionRefusedError:
         pass
+
+
+# Read Var (S7 process-data tag reads) ---------------------------------
+
+# Hand-verified against a real-world worked example: reading DB1, byte
+# offset 4, as a single BYTE. Every field (transport size 0x02=BYTE,
+# count=1, DB number=1, area=0x84, address=0x000020 == 4<<3) matches
+# that example byte-for-byte.
+def test_build_read_var_request_matches_known_worked_example():
+    request = s7_diag._build_read_var_request(0x84, 1, 4, 0, "BYTE")
+    assert request == bytes.fromhex(
+        "0300001f02f080320100000001000e00000401120a10020001000184000020"
+    )
+
+
+def test_build_read_var_request_bit_uses_bit_transport_size_and_address():
+    # M0.3 -- area M, byte offset 0, bit offset 3: transport size 0x01
+    # (BIT), count 1, address = 0*8+3 = 3.
+    request = s7_diag._build_read_var_request(0x83, 0, 0, 3, "BIT")
+    item = request[17 + 2:]  # after TPKT+COTP+header(17) + param header(2)
+    assert item[3] == 0x01  # transport size = BIT
+    assert item[8] == 0x83  # area = M
+    assert item[9:12] == bytes([0, 0, 3])  # address = bit 3
+
+
+def test_build_read_var_request_word_doubles_count_for_byte_size():
+    # A WORD is 2 bytes -- transport size collapses to BYTE (0x02) with
+    # count=2, per the convention every S7 client uses.
+    request = s7_diag._build_read_var_request(0x84, 5, 10, 0, "WORD")
+    item = request[17 + 2:]
+    assert item[3] == 0x02  # transport size = BYTE
+    assert item[4:6] == bytes([0, 2])  # count = 2 bytes
+    assert item[9:12] == bytes([0, 0, 10 * 8])  # address = byte 10 << 3
+
+
+def _read_var_ack_frame(return_code: int, data: bytes) -> bytes:
+    """Builds a minimal Ack_Data (rosctr=0x03) Read Var response frame
+    with one item: return_code + transport_size(0x04) + length(bits) +
+    data."""
+    item_data = bytes([return_code, 0x04]) + struct.pack("!H", len(data) * 8) + data
+    parameter = bytes([0x04, 0x01])  # function=Read Var, item count=1
+    header = struct.pack("!BBHHHH", 0x32, 0x03, 0x0000, 0x0001, len(parameter), len(item_data))
+    cotp = bytes([0x02, 0xF0, 0x80])
+    s7_pdu = header + parameter + item_data
+    tpkt = struct.pack("!BBH", 0x03, 0x00, 4 + len(cotp) + len(s7_pdu))
+    return tpkt + cotp + s7_pdu
+
+
+def test_parse_read_var_response_returns_data_on_success():
+    frame = _read_var_ack_frame(0xFF, b"\x2a")
+    data, error = s7_diag._parse_read_var_response(frame, 1)
+    assert data == b"\x2a"
+    assert error is None
+
+
+def test_parse_read_var_response_returns_message_on_failure_code():
+    frame = _read_var_ack_frame(0x05, b"")
+    data, error = s7_diag._parse_read_var_response(frame, 1)
+    assert data is None
+    assert error == "invalid address"
+
+
+def test_parse_read_var_response_reports_short_response():
+    data, error = s7_diag._parse_read_var_response(b"\x03\x00\x00\x04", 1)
+    assert data is None
+    assert error == "invalid or no response"
+
+
+def test_decode_tag_value_bit():
+    assert s7_diag._decode_tag_value("BIT", b"\x01") is True
+    assert s7_diag._decode_tag_value("BIT", b"\x00") is False
+
+
+def test_decode_tag_value_byte():
+    assert s7_diag._decode_tag_value("BYTE", b"\xff") == 255
+
+
+def test_decode_tag_value_word_and_int():
+    assert s7_diag._decode_tag_value("WORD", b"\xff\xff") == 65535
+    assert s7_diag._decode_tag_value("INT", b"\xff\xff") == -1
+
+
+def test_decode_tag_value_dword_and_dint():
+    assert s7_diag._decode_tag_value("DWORD", b"\xff\xff\xff\xff") == 4294967295
+    assert s7_diag._decode_tag_value("DINT", b"\xff\xff\xff\xff") == -1
+
+
+def test_decode_tag_value_real():
+    raw = struct.pack("!f", 3.5)
+    assert s7_diag._decode_tag_value("REAL", raw) == 3.5
+
+
+def test_read_tag_rejects_missing_host():
+    result = s7_diag.read_tag("", "DB", 0, "BYTE")
+    assert result == {"ok": False, "message": "host is required"}
+
+
+def test_read_tag_rejects_unknown_area():
+    result = s7_diag.read_tag("10.0.0.1", "X", 0, "BYTE")
+    assert result["ok"] is False
+    assert "area must be one of" in result["message"]
+
+
+def test_read_tag_rejects_unknown_type():
+    result = s7_diag.read_tag("10.0.0.1", "DB", 0, "FLOAT")
+    assert result["ok"] is False
+    assert "type must be one of" in result["message"]
+
+
+def test_read_tag_requires_db_number_for_db_area():
+    result = s7_diag.read_tag("10.0.0.1", "DB", 0, "BYTE", db_number=0)
+    assert result["ok"] is False
+    assert "db_number is required" in result["message"]
+
+
+def test_read_tag_rejects_out_of_range_bit_offset():
+    result = s7_diag.read_tag("10.0.0.1", "M", 0, "BIT", bit_offset=8)
+    assert result["ok"] is False
+    assert "bit_offset must be 0-7" in result["message"]

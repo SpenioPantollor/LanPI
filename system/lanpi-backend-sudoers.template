@@ -1,0 +1,14 @@
+# LanPi backend service (systemd, no tty) needs to reconfigure its own
+# network interfaces and restart itself/hostapd unattended --
+# NetworkManager's polkit won't grant that to an unprivileged service
+# user without an active login session (see backend/shell.py
+# run_privileged()). Scoped to the exact binaries/subcommands
+# backend/network/*.py and the deploy workflow actually invoke, not a
+# blanket NOPASSWD:ALL. __REPO_DIR__ is substituted by install.sh.
+lanpi ALL=(root) NOPASSWD: /usr/bin/nmcli
+lanpi ALL=(root) NOPASSWD: /usr/bin/cp /tmp/* /etc/hostapd/hostapd.conf
+lanpi ALL=(root) NOPASSWD: /usr/bin/systemctl restart hostapd
+lanpi ALL=(root) NOPASSWD: /usr/bin/systemctl restart lanpi.service
+lanpi ALL=(root) NOPASSWD: /usr/bin/systemctl is-active lanpi.service
+lanpi ALL=(root) NOPASSWD: __REPO_DIR__/system/lanpi-ap-up.sh
+lanpi ALL=(root) NOPASSWD: __REPO_DIR__/system/lanpi-ap-down.sh

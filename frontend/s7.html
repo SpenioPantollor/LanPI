@@ -98,6 +98,54 @@
       </dl>
       <p id="s7-partial-warning" class="card-hint" hidden></p>
     </section>
+
+    <section class="card">
+      <h2>Read Tag</h2>
+      <p class="card-hint">
+        Reads one process-data value via S7comm's "Read Var" service
+        (e.g. DB5.DBW10 or M0.3) &mdash; the S7 equivalent of a Modbus
+        register read. Read-only: no write support.
+      </p>
+      <form id="s7-read-form">
+        <label for="s7-read-host">Host or IP</label>
+        <input id="s7-read-host" type="text" placeholder="192.168.0.100" autocomplete="off" />
+        <label for="s7-read-port">Port</label>
+        <input id="s7-read-port" type="number" min="1" max="65535" placeholder="102" autocomplete="off" />
+        <label for="s7-read-area">Area</label>
+        <select id="s7-read-area">
+          <option value="DB">DB (Data Block)</option>
+          <option value="M">M (Merker / Flag)</option>
+          <option value="I">I (Input)</option>
+          <option value="Q">Q (Output)</option>
+        </select>
+        <label for="s7-read-db" id="s7-read-db-label">DB Number</label>
+        <input id="s7-read-db" type="number" min="1" placeholder="1" autocomplete="off" />
+        <label for="s7-read-offset">Byte Offset</label>
+        <input id="s7-read-offset" type="number" min="0" placeholder="0" autocomplete="off" />
+        <label for="s7-read-type">Type</label>
+        <select id="s7-read-type">
+          <option value="BIT">BIT</option>
+          <option value="BYTE">BYTE</option>
+          <option value="WORD">WORD</option>
+          <option value="INT">INT</option>
+          <option value="DWORD">DWORD</option>
+          <option value="DINT">DINT</option>
+          <option value="REAL">REAL</option>
+        </select>
+        <label for="s7-read-bit" id="s7-read-bit-label">Bit Offset (0-7)</label>
+        <input id="s7-read-bit" type="number" min="0" max="7" placeholder="0" autocomplete="off" />
+        <button id="s7-read-btn" type="submit">Read</button>
+      </form>
+      <p id="s7-read-status" class="card-hint"></p>
+      <dl id="s7-read-result" hidden>
+        <dt>Value</dt>
+        <dd id="s7-read-value">-</dd>
+        <dt>Raw Bytes</dt>
+        <dd id="s7-read-raw">-</dd>
+        <dt>Response Time</dt>
+        <dd id="s7-read-response-time">-</dd>
+      </dl>
+    </section>
   </main>
 
   <footer>

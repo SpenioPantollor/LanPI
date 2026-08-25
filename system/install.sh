@@ -113,4 +113,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable lanpi.service
 sudo systemctl restart lanpi.service
 
+# Passwordless sudo for the unattended service (see backend/shell.py
+# run_privileged()) -- validated with visudo -cf on a scratch file
+# BEFORE it ever touches /etc/sudoers.d, since a malformed file placed
+# there directly could break sudo for everyone.
+SUDOERS_TMP="$(mktemp)"
+sed "s|__REPO_DIR__|$REPO_DIR|g" "$REPO_DIR/system/lanpi-backend-sudoers.template" > "$SUDOERS_TMP"
+sudo visudo -cf "$SUDOERS_TMP"
+sudo install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/lanpi-backend
+rm -f "$SUDOERS_TMP"
+
 echo "LanPi installed. Check status with: sudo systemctl status lanpi.service"

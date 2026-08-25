@@ -1,14 +1,21 @@
-"""Siemens S7 CPU identification, read-only, on the TEST PORT (eth0).
+"""Siemens S7 CPU identification and tag reading, read-only, on the
+TEST PORT (eth0).
 
 Establishes a COTP/S7comm session (the same handshake any S7 PLC
-programming/HMI tool uses) and reads the CPU's own System Status List
-(SZL) -- module type, order number, firmware version, serial number,
-plant ID -- via the standard "Read SZL" service. This is pure
-identification, the S7 equivalent of Modbus's Device Identification
-(FC43) in modbus.py: no DB/memory read or write, no PLC control
-(start/stop), nothing that could affect a running process. S7 "Read/
-Write Var" (actual process data access) is a distinct, much larger
-scope and isn't implemented here.
+programming/HMI tool uses). Two things are exposed:
+
+- identify(): reads the CPU's own System Status List (SZL) -- module
+  type, order number, firmware version, serial number, plant ID --
+  via the standard "Read SZL" service. The S7 equivalent of Modbus's
+  Device Identification (FC43) in modbus.py.
+- read_tag(): reads a single process-data value (a DB/M/I/Q address)
+  via the standard "Read Var" service, given an area, offset and data
+  type -- the S7 equivalent of a Modbus register read.
+
+Both are strictly read-only: no memory write, no PLC control (start/
+stop), nothing that could affect a running process. S7 "Write Var" is
+deliberately not implemented -- consistent with LanPi's non-disruptive
+diagnostics-only philosophy.
 
 Hand-rolled, no python-snap7/pysnmp-style dependency -- consistent
 with this project's other protocol clients (LLDP/CDP/MNDP, Modbus,
@@ -66,6 +73,25 @@ _READ_SZL_COMPONENT_IDENTIFICATION = bytes.fromhex(
 _COTP_CONNECT_CONFIRM = 0xD0
 _S7_PROTOCOL_ID = 0x32
 
+# S7comm "Read Var" (function 0x04) addresses process data with the
+# standard "S7ANY" addressing scheme: an area code, an optional DB
+# number, and a bit-granular address (byte_offset*8 + bit_offset).
+# Area codes and the byte/word/dword-collapses-to-BYTE-transport-size
+# convention below match every open-source S7 client (Snap7, libnodave,
+# python-snap7) -- this is a stable, decades-old wire format, not
+# something Siemens has ever officially published on its own.
+_S7_AREA_CODES = {"I": 0x81, "Q": 0x82, "M": 0x83, "DB": 0x84}
+
+# Byte size of one element for each supported data type. WORD/DWORD
+# are unsigned; INT/DINT are signed; REAL is IEEE 754 single-precision
+# -- all big-endian on the wire, as with every other S7 numeric field.
+_S7_TYPE_SIZES = {"BIT": 1, "BYTE": 1, "WORD": 2, "INT": 2, "DWORD": 4, "DINT": 4, "REAL": 4}
+
+_S7ANY_SYNTAX_ID = 0x10
+_S7_TRANSPORT_SIZE_BIT = 0x01
+_S7_TRANSPORT_SIZE_BYTE = 0x02
+_S7_READ_VAR_FUNCTION = 0x04
+
 
 def _eth0_source_ip() -> str | None:
     mode = eth0_mode.get_mode()
@@ -117,6 +143,70 @@ def _cstring(data: bytes, offset: int) -> str | None:
         return None
     text = data[offset:end].decode("ascii", errors="replace").strip()
     return text or None
+
+
+def _build_read_var_request(area_code: int, db_number: int, byte_offset: int, bit_offset: int, data_type: str) -> bytes:
+    """Builds a one-item S7comm Read Var job request. Verified against
+    a real-world worked example (reading DB1, byte offset 4, as BYTE):
+    the item's transport-size/count/area/address fields below produce
+    exactly the same bytes as that example."""
+    is_bit = data_type == "BIT"
+    transport_size = _S7_TRANSPORT_SIZE_BIT if is_bit else _S7_TRANSPORT_SIZE_BYTE
+    count = 1 if is_bit else _S7_TYPE_SIZES[data_type]
+    bit_address = byte_offset * 8 + (bit_offset if is_bit else 0)
+    item = struct.pack(
+        "!BBBBHHBBBB",
+        0x12, 0x0A, _S7ANY_SYNTAX_ID, transport_size, count, db_number,
+        area_code, (bit_address >> 16) & 0xFF, (bit_address >> 8) & 0xFF, bit_address & 0xFF,
+    )
+    parameter = struct.pack("!BB", _S7_READ_VAR_FUNCTION, 1) + item
+    header = struct.pack("!BBHHHH", _S7_PROTOCOL_ID, 0x01, 0x0000, 0x0001, len(parameter), 0x0000)
+    cotp = bytes([0x02, 0xF0, 0x80])
+    s7_pdu = header + parameter
+    tpkt = struct.pack("!BBH", 0x03, 0x00, 4 + len(cotp) + len(s7_pdu))
+    return tpkt + cotp + s7_pdu
+
+
+def _parse_read_var_response(frame: bytes, expected_bytes: int) -> tuple[bytes | None, str | None]:
+    """Returns (raw_data, error_message) -- exactly one of the two is
+    None. Reuses the same header layout (data section starts right
+    after the parameter, at 17 + param_len) that _szl_return_code()
+    already relies on -- that offset is a general S7 header fact, not
+    specific to the SZL service. The item's own return code reuses
+    _SZL_RETURN_CODE_MESSAGES since it's the same S7comm-wide DataItem
+    return-code table (0xFF success, 0x0A object does not exist, ...)."""
+    if len(frame) < 17 or frame[7] != _S7_PROTOCOL_ID:
+        return None, "invalid or no response"
+    param_len = struct.unpack("!H", frame[13:15])[0]
+    item_offset = 17 + param_len
+    if item_offset + 4 > len(frame):
+        return None, "short response"
+    return_code = frame[item_offset]
+    if return_code != _SZL_RETURN_CODE_SUCCESS:
+        return None, _SZL_RETURN_CODE_MESSAGES.get(
+            return_code, f"read failed (return code 0x{return_code:02x})"
+        )
+    data_start = item_offset + 4
+    data = frame[data_start:data_start + expected_bytes]
+    if len(data) < expected_bytes:
+        return None, "truncated data in response"
+    return bytes(data), None
+
+
+def _decode_tag_value(data_type: str, raw: bytes):
+    if data_type == "BIT":
+        return bool(raw[0] & 0x01)
+    if data_type == "BYTE":
+        return raw[0]
+    if data_type == "WORD":
+        return struct.unpack("!H", raw)[0]
+    if data_type == "INT":
+        return struct.unpack("!h", raw)[0]
+    if data_type == "DWORD":
+        return struct.unpack("!I", raw)[0]
+    if data_type == "DINT":
+        return struct.unpack("!i", raw)[0]
+    return struct.unpack("!f", raw)[0]  # REAL
 
 
 def _parse_module_identification(frame: bytes) -> dict:
@@ -302,3 +392,104 @@ def identify(host: str, port: int = 102, timeout: float = 5.0) -> dict:
     result.update(module_info)
     result.update(component_info)
     return result
+
+
+def read_tag(
+    host: str,
+    area: str,
+    byte_offset: int,
+    data_type: str,
+    port: int = 102,
+    db_number: int = 0,
+    bit_offset: int = 0,
+    timeout: float = 5.0,
+) -> dict:
+    """Reads a single process-data value via S7comm's "Read Var"
+    service -- e.g. DB5.DBW10 (area="DB", db_number=5, byte_offset=10,
+    data_type="WORD") or M0.3 (area="M", byte_offset=0, bit_offset=3,
+    data_type="BIT"). Read-only: no Write Var support by design."""
+    host = (host or "").strip()
+    if not host:
+        return {"ok": False, "message": "host is required"}
+    if not (1 <= port <= 65535):
+        return {"ok": False, "message": "port must be 1-65535"}
+    area = (area or "").strip().upper()
+    if area not in _S7_AREA_CODES:
+        return {"ok": False, "message": f"area must be one of {', '.join(_S7_AREA_CODES)}"}
+    data_type = (data_type or "").strip().upper()
+    if data_type not in _S7_TYPE_SIZES:
+        return {"ok": False, "message": f"type must be one of {', '.join(_S7_TYPE_SIZES)}"}
+    if area == "DB" and db_number < 1:
+        return {"ok": False, "message": "db_number is required (>= 1) when area is DB"}
+    if byte_offset < 0:
+        return {"ok": False, "message": "byte_offset must be >= 0"}
+    if data_type == "BIT" and not (0 <= bit_offset <= 7):
+        return {"ok": False, "message": "bit_offset must be 0-7"}
+
+    source_ip = _eth0_source_ip()
+    if not source_ip:
+        return {
+            "ok": False,
+            "message": "eth0 has no IP address -- switch to DHCP or Static mode first "
+                       "(Passive mode has no source address to connect from)",
+        }
+
+    started = time.monotonic()
+
+    def elapsed_ms() -> float:
+        return round((time.monotonic() - started) * 1000, 1)
+
+    sock = None
+    try:
+        sock = _open_and_negotiate_cotp(host, port, source_ip, timeout)
+        if sock is None:
+            return {
+                "ok": False,
+                "message": "COTP connection not confirmed -- not an S7-compatible device, "
+                           "or a different rack/slot than the two defaults tried",
+                "response_time_ms": elapsed_ms(),
+            }
+
+        sock.sendall(_SETUP_COMMUNICATION)
+        setup_response = _recv_tpkt_frame(sock)
+        if setup_response is None or len(setup_response) < 8 or setup_response[7] != _S7_PROTOCOL_ID:
+            return {
+                "ok": False,
+                "message": "no valid S7comm response to Setup Communication",
+                "response_time_ms": elapsed_ms(),
+            }
+
+        request = _build_read_var_request(
+            _S7_AREA_CODES[area], db_number, byte_offset, bit_offset, data_type
+        )
+        sock.sendall(request)
+        response = _recv_tpkt_frame(sock)
+    except socket.timeout:
+        return {"ok": False, "message": "timeout -- no response from device", "response_time_ms": elapsed_ms()}
+    except ConnectionRefusedError:
+        return {"ok": False, "message": f"connection refused -- port {port} not open",
+                 "response_time_ms": elapsed_ms()}
+    except OSError as exc:
+        return {"ok": False, "message": str(exc), "response_time_ms": elapsed_ms()}
+    finally:
+        if sock is not None:
+            sock.close()
+
+    if response is None:
+        return {"ok": False, "message": "no response to Read Var request", "response_time_ms": elapsed_ms()}
+
+    raw, error = _parse_read_var_response(response, _S7_TYPE_SIZES[data_type])
+    if error is not None:
+        return {"ok": False, "message": error, "response_time_ms": elapsed_ms()}
+
+    return {
+        "ok": True,
+        "value": _decode_tag_value(data_type, raw),
+        "area": area,
+        "db_number": db_number if area == "DB" else None,
+        "byte_offset": byte_offset,
+        "bit_offset": bit_offset if data_type == "BIT" else None,
+        "type": data_type,
+        "raw_hex": raw.hex(),
+        "response_time_ms": elapsed_ms(),
+    }

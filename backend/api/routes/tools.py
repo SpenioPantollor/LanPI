@@ -122,3 +122,26 @@ class S7IdentifyRequest(BaseModel):
 @router.post("/s7/identify")
 def s7_identify(body: S7IdentifyRequest) -> dict:
     return s7_diag.identify(body.host, body.port or 102)
+
+
+class S7ReadTagRequest(BaseModel):
+    host: str
+    area: str
+    byte_offset: int
+    type: str
+    port: Optional[int] = 102
+    db_number: Optional[int] = 0
+    bit_offset: Optional[int] = 0
+
+
+@router.post("/s7/read-tag")
+def s7_read_tag(body: S7ReadTagRequest) -> dict:
+    return s7_diag.read_tag(
+        body.host,
+        body.area,
+        body.byte_offset,
+        body.type,
+        port=body.port or 102,
+        db_number=body.db_number or 0,
+        bit_offset=body.bit_offset or 0,
+    )
