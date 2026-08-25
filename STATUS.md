@@ -234,8 +234,34 @@ saw **zero** LLDP frames from it -- LLDP's "nearest bridge" multicast
 scope (`01:80:c2:00:00:0e`) often isn't forwarded past one switch hop,
 unlike PROFINET DCP's own multicast group, so a PLC not directly
 link-adjacent to eth0 can be invisible to LLDP while still answering
-DCP. This is also what surfaced the LLDP single-neighbor-cache issue
-noted below.
+DCP. This is also what surfaced the LLDP single-neighbor-cache issue,
+fixed the same day (below).
+
+**LLDP multi-neighbor support added 2026-08-25**, same day it was
+found. `backend/discovery/lldp.py`'s `_neighbors` was
+`dict[str, dict]` keyed by *interface*, caching only the single
+most-recently-seen neighbor -- user-reported live: once more than one
+LLDP-sending device was actually reachable through the test switch (an
+engineering PC and a Siemens device both seen), the Dashboard's LLDP
+card visibly flickered/jumped between them, each overwriting the
+other's cached entry every time a new frame arrived. Pre-existing
+design limitation (this module was written assuming "one directly-
+connected switch," LLDP/CDP/MNDP's original common case), not a
+regression from anything else this session touched. Fixed by
+re-keying `_neighbors` by source MAC instead -- same shape as
+`traffic_stats.py`'s `_talkers` dict, including its bounding approach
+(`_MAX_NEIGHBORS = 500`, oldest-by-last-seen evicted over the cap).
+`get_neighbor()` (singular) is now `get_neighbors()` (plural),
+returning `{"interface", "present", "neighbors": [...]}` instead of a
+single flattened object -- `GET /api/discovery/lldp`'s response shape
+changed accordingly (internal API, only consumed by LanPi's own
+frontend, no external compatibility concern). The Dashboard's
+"Neighbor (LLDP)" card is now "Neighbors (LLDP)", a table instead of
+a `<dl>`, same visual pattern as the IP Conflict/DHCP Server tables
+already on that page. CDP and MNDP have the identical single-neighbor
+design (same original reasoning) but weren't touched -- neither
+Cisco nor MikroTik gear is on this test network, so the bug hasn't
+actually manifested for them; revisit if it does.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
@@ -768,9 +794,15 @@ from before this date, that history no longer exists.
     practice they're the tools that actually exercise this route.
   - `GET /api/discovery/lldp` — passive LLDP neighbor discovery
     (`backend/discovery/lldp.py`): background thread runs `tcpdump`
-    continuously, parses LLDP TLVs from its pcap stream, caches the
-    latest neighbor. Runs unprivileged via `setcap
-    cap_net_raw,cap_net_admin` on `tcpdump`, no root/sudo needed.
+    continuously, parses LLDP TLVs from its pcap stream, caches every
+    distinct neighbor seen (keyed by source MAC, bounded to 500
+    entries, oldest-by-last-seen evicted over the cap) rather than
+    just the most recent one -- returns a `neighbors` list, not a
+    single object (changed 2026-08-25, see Summary/Known-gaps: a
+    single-neighbor cache flickered once more than one LLDP-speaking
+    device was reachable through the test switch). Runs unprivileged
+    via `setcap cap_net_raw,cap_net_admin` on `tcpdump`, no root/sudo
+    needed.
   - `GET /api/discovery/cdp` — same background-tcpdump-plus-cache
     architecture as LLDP (`backend/discovery/cdp.py`), adapted for
     CDP's 802.3+LLC/SNAP framing (dest MAC `01:00:0c:cc:cc:cc`, OUI
@@ -1430,19 +1462,6 @@ from before this date, that history no longer exists.
 
 ## Known gaps
 
-- **LLDP only caches one neighbor per interface**
-  (`backend/discovery/lldp.py`'s `_neighbors: dict[str, dict]`, keyed
-  by interface, not by source MAC) -- discovered live 2026-08-25:
-  with multiple LLDP-sending devices actually reachable through the
-  test switch (an engineering PC and a Siemens device both seen),
-  the Dashboard's LLDP card visibly flickered/jumped between them,
-  each overwriting the other's cached entry every time a new frame
-  arrived. Pre-existing design limitation (this module was written
-  assuming "one directly-connected switch," LLDP/CDP/MNDP's original
-  common case), not a regression from anything this session touched.
-  Fix is a multi-neighbor table keyed by source MAC, same shape as
-  `traffic_stats.py`'s `_talkers` dict -- not done yet, next up per
-  "Next steps" below.
 - Siemens S7 CPU identification (`backend/tools/s7_diag.py`,
   2026-08-25) live-verified against a real S7-1200 -- module
   identification works; component identification (SZL 0x001c) isn't

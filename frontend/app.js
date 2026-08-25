@@ -412,41 +412,37 @@ function applyEth0Static(event) {
 }
 
 async function loadLldp() {
-  const statusEl = document.getElementById("lldp-status");
-  const systemEl = document.getElementById("lldp-system");
-  const chassisEl = document.getElementById("lldp-chassis");
-  const portEl = document.getElementById("lldp-port");
-  const mgmtIpEl = document.getElementById("lldp-mgmt-ip");
-  const vlanEl = document.getElementById("lldp-vlan");
-  const ageEl = document.getElementById("lldp-age");
+  const bodyEl = document.getElementById("lldp-body");
+  const emptyEl = document.getElementById("lldp-empty");
 
   try {
     const res = await fetch("/api/discovery/lldp");
-    const lldp = await res.json();
+    const result = await res.json();
+    const neighbors = result.neighbors || [];
 
-    if (!lldp.present) {
-      statusEl.textContent = "no neighbor seen";
-      statusEl.className = "";
-      systemEl.textContent = "-";
-      chassisEl.textContent = "-";
-      portEl.textContent = "-";
-      mgmtIpEl.textContent = "-";
-      vlanEl.textContent = "-";
-      ageEl.textContent = "-";
+    bodyEl.innerHTML = "";
+    if (neighbors.length === 0) {
+      emptyEl.textContent = "no neighbors seen";
       return;
     }
 
-    statusEl.textContent = "neighbor found";
-    statusEl.className = "link-up";
-    systemEl.textContent = lldp.system_name || lldp.system_description || "-";
-    chassisEl.textContent = lldp.chassis_id || "-";
-    portEl.textContent = lldp.port_description || lldp.port_id || "-";
-    mgmtIpEl.textContent = lldp.management_ip || "-";
-    vlanEl.textContent = lldp.vlan ?? "-";
-    ageEl.textContent = `${lldp.age_seconds}s ago`;
+    emptyEl.textContent = "";
+    for (const n of neighbors) {
+      const tr = document.createElement("tr");
+      const system = n.system_name || n.system_description || "-";
+      const port = n.port_description || n.port_id || "-";
+      tr.innerHTML = `
+        <td>${system}</td>
+        <td>${n.chassis_id || "-"}</td>
+        <td>${port}</td>
+        <td>${n.management_ip || "-"}</td>
+        <td>${n.vlan ?? "-"}</td>
+        <td>${n.age_seconds}s ago</td>
+      `;
+      bodyEl.appendChild(tr);
+    }
   } catch (err) {
-    statusEl.textContent = "unreachable";
-    statusEl.className = "";
+    emptyEl.textContent = "unreachable";
   }
 }
 

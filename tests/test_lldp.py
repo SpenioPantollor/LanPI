@@ -83,6 +83,10 @@ def test_empty_payload_returns_all_none():
     assert all(v is None for v in neighbor.values())
 
 
+def _eth_frame_from(src_mac: str, ethertype: int, payload: bytes) -> bytes:
+    return b"\x00" * 6 + _mac(src_mac) + struct.pack("!H", ethertype) + payload
+
+
 def test_handle_packet_ignores_non_lldp_ethertype():
     lldp._neighbors.clear()
     packet = _eth_frame(0x0800, b"\x00" * 20)  # IPv4, not LLDP
@@ -92,10 +96,86 @@ def test_handle_packet_ignores_non_lldp_ethertype():
     assert lldp._neighbors == {}
 
 
-def test_handle_packet_parses_and_caches_an_lldp_frame():
+def test_handle_packet_parses_and_caches_an_lldp_frame_keyed_by_source_mac():
     lldp._neighbors.clear()
-    packet = _eth_frame(0x88CC, _tlv(5, b"switch01"))
+    packet = _eth_frame_from("aa:bb:cc:dd:ee:ff", 0x88CC, _tlv(5, b"switch01"))
 
     lldp._handle_packet("eth0", packet)
 
-    assert lldp._neighbors["eth0"]["system_name"] == "switch01"
+    assert lldp._neighbors["aa:bb:cc:dd:ee:ff"]["system_name"] == "switch01"
+    assert lldp._neighbors["aa:bb:cc:dd:ee:ff"]["mac"] == "aa:bb:cc:dd:ee:ff"
+
+
+def test_handle_packet_keeps_separate_neighbors_for_different_source_macs():
+    # The bug this fixes (2026-08-25): a single-neighbor cache flickered
+    # once more than one LLDP-sending device was reachable through the
+    # test switch, each overwriting the other's entry.
+    lldp._neighbors.clear()
+    lldp._handle_packet("eth0", _eth_frame_from("aa:aa:aa:aa:aa:aa", 0x88CC, _tlv(5, b"pc-01")))
+    lldp._handle_packet("eth0", _eth_frame_from("bb:bb:bb:bb:bb:bb", 0x88CC, _tlv(5, b"plc-01")))
+
+    assert lldp._neighbors["aa:aa:aa:aa:aa:aa"]["system_name"] == "pc-01"
+    assert lldp._neighbors["bb:bb:bb:bb:bb:bb"]["system_name"] == "plc-01"
+    assert len(lldp._neighbors) == 2
+
+
+def test_handle_packet_evicts_oldest_when_over_the_cap(monkeypatch):
+    lldp._neighbors.clear()
+    monkeypatch.setattr(lldp, "_MAX_NEIGHBORS", 2)
+
+    times = iter([1000.0, 2000.0, 3000.0])
+    monkeypatch.setattr(lldp.time, "time", lambda: next(times))
+
+    lldp._handle_packet("eth0", _eth_frame_from("aa:aa:aa:aa:aa:aa", 0x88CC, _tlv(5, b"first")))
+    lldp._handle_packet("eth0", _eth_frame_from("bb:bb:bb:bb:bb:bb", 0x88CC, _tlv(5, b"second")))
+    lldp._handle_packet("eth0", _eth_frame_from("cc:cc:cc:cc:cc:cc", 0x88CC, _tlv(5, b"third")))
+
+    assert len(lldp._neighbors) == 2
+    assert "aa:aa:aa:aa:aa:aa" not in lldp._neighbors  # oldest (last_seen=1000.0) evicted
+    assert "bb:bb:bb:bb:bb:bb" in lldp._neighbors
+    assert "cc:cc:cc:cc:cc:cc" in lldp._neighbors
+
+
+def test_get_neighbors_lists_all_fresh_neighbors_sorted_by_age(monkeypatch):
+    lldp._neighbors.clear()
+    lldp._started_interfaces.clear()
+
+    times = iter([1000.0, 1010.0, 1050.0])  # two packets arrive, then a read
+    monkeypatch.setattr(lldp.time, "time", lambda: next(times))
+    monkeypatch.setattr(lldp, "start_listener", lambda interface="eth0": None)
+
+    lldp._handle_packet("eth0", _eth_frame_from("aa:aa:aa:aa:aa:aa", 0x88CC, _tlv(5, b"older")))
+    lldp._handle_packet("eth0", _eth_frame_from("bb:bb:bb:bb:bb:bb", 0x88CC, _tlv(5, b"newer")))
+
+    result = lldp.get_neighbors("eth0")
+
+    assert result["present"] is True
+    assert [n["system_name"] for n in result["neighbors"]] == ["newer", "older"]
+    assert result["neighbors"][0]["age_seconds"] == 40  # 1050 - 1010
+    assert result["neighbors"][1]["age_seconds"] == 50  # 1050 - 1000
+
+
+def test_get_neighbors_excludes_stale_entries(monkeypatch):
+    lldp._neighbors.clear()
+    lldp._started_interfaces.clear()
+
+    times = iter([1000.0, 1200.0])  # one packet, then a read 200s later
+    monkeypatch.setattr(lldp.time, "time", lambda: next(times))
+    monkeypatch.setattr(lldp, "start_listener", lambda interface="eth0": None)
+
+    lldp._handle_packet("eth0", _eth_frame_from("aa:aa:aa:aa:aa:aa", 0x88CC, _tlv(5, b"gone")))
+
+    result = lldp.get_neighbors("eth0", stale_after=150.0)
+
+    assert result["present"] is False
+    assert result["neighbors"] == []
+
+
+def test_get_neighbors_present_false_with_no_neighbors(monkeypatch):
+    lldp._neighbors.clear()
+    lldp._started_interfaces.clear()
+    monkeypatch.setattr(lldp, "start_listener", lambda interface="eth0": None)
+
+    result = lldp.get_neighbors("eth0")
+
+    assert result == {"interface": "eth0", "present": False, "neighbors": []}

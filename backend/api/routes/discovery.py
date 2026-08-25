@@ -7,8 +7,8 @@ router = APIRouter(prefix="/discovery")
 
 
 @router.get("/lldp")
-def lldp_neighbor() -> dict:
-    return lldp.get_neighbor(TEST_PORT_INTERFACE)
+def lldp_neighbors() -> dict:
+    return lldp.get_neighbors(TEST_PORT_INTERFACE)
 
 
 @router.get("/cdp")

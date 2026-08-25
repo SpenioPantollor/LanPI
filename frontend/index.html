@@ -220,24 +220,29 @@
     </section>
 
     <section class="card">
-      <h2>Neighbor (LLDP)</h2>
-      <p class="card-hint">Link Layer Discovery Protocol -- vendor-neutral, used by most switches/routers.</p>
-      <dl id="lldp">
-        <dt>Status</dt>
-        <dd id="lldp-status">checking...</dd>
-        <dt>System</dt>
-        <dd id="lldp-system">-</dd>
-        <dt>Chassis ID</dt>
-        <dd id="lldp-chassis">-</dd>
-        <dt>Port</dt>
-        <dd id="lldp-port">-</dd>
-        <dt>Management IP</dt>
-        <dd id="lldp-mgmt-ip">-</dd>
-        <dt>VLAN</dt>
-        <dd id="lldp-vlan">-</dd>
-        <dt>Last seen</dt>
-        <dd id="lldp-age">-</dd>
-      </dl>
+      <h2>Neighbors (LLDP)</h2>
+      <p class="card-hint">
+        Link Layer Discovery Protocol -- vendor-neutral, used by most
+        switches/routers. Lists every distinct device seen (by source
+        MAC), not just the most recent one -- behind a switch more
+        than one LLDP-speaking neighbor can be reachable at once.
+      </p>
+      <div class="table-scroll">
+        <table id="lldp-table" class="data-table">
+          <thead>
+            <tr>
+              <th>System</th>
+              <th>Chassis ID</th>
+              <th>Port</th>
+              <th>Management IP</th>
+              <th>VLAN</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="lldp-body"></tbody>
+        </table>
+      </div>
+      <p id="lldp-empty" class="card-hint">checking...</p>
     </section>
 
     <section class="card">

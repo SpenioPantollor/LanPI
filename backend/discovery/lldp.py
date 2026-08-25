@@ -5,9 +5,21 @@ tcpdump capture (v0.2.3 Foundation #3) rather than this module running
 its own dedicated tcpdump process -- see that module's docstring for
 why. _handle_packet() does the LLDP EtherType filter that used to be a
 BPF filter at the tcpdump level, then hands off to the same
-_parse_lldpdu() TLV parser as before, caching the most recent neighbor
-per interface. API handlers read the cache directly so requests never
-block waiting on the network.
+_parse_lldpdu() TLV parser as before.
+
+Caches every distinct neighbor seen, keyed by source MAC, not just the
+single most-recently-seen one -- user-reported 2026-08-25: once more
+than one LLDP-sending device was actually reachable through the test
+switch (an engineering PC and a Siemens device both visible), the
+Dashboard's LLDP card visibly flickered/jumped between them, each
+overwriting the other's cached entry every ~30s. Same shape as
+traffic_stats.py's _talkers dict (keyed by MAC, no interface
+indirection -- dispatcher.py only ever captures on one interface at a
+time anyway, see its own docstring), bounded the same way too
+(_MAX_NEIGHBORS, oldest-by-last-seen evicted over the cap) so a
+long-running session on a busy segment doesn't grow unbounded. API
+handlers read the cache directly so requests never block waiting on
+the network.
 """
 
 from __future__ import annotations
@@ -19,9 +31,11 @@ import time
 from backend.capture import dispatcher
 
 _LLDP_ETHERTYPE = 0x88CC
+_MAX_NEIGHBORS = 500
+_DEFAULT_STALE_AFTER = 150.0
 
 _lock = threading.Lock()
-_neighbors: dict[str, dict] = {}
+_neighbors: dict[str, dict] = {}  # mac -> {..fields.., mac, last_seen}
 _started_interfaces: set[str] = set()
 
 
@@ -104,10 +118,16 @@ def _handle_packet(interface: str, packet: bytes) -> None:
     if ethertype != _LLDP_ETHERTYPE:
         return
 
+    mac = ":".join(f"{b:02x}" for b in packet[6:12])
     neighbor = _parse_lldpdu(packet[14:])
+    neighbor["mac"] = mac
     neighbor["last_seen"] = time.time()
     with _lock:
-        _neighbors[interface] = neighbor
+        _neighbors[mac] = neighbor
+        if len(_neighbors) > _MAX_NEIGHBORS:
+            oldest_mac = min(_neighbors, key=lambda m: _neighbors[m]["last_seen"])
+            if oldest_mac != mac:
+                del _neighbors[oldest_mac]
 
 
 def start_listener(interface: str = "eth0") -> None:
@@ -119,21 +139,21 @@ def start_listener(interface: str = "eth0") -> None:
     dispatcher.register_handler(lambda packet: _handle_packet(interface, packet))
 
 
-def get_neighbor(interface: str = "eth0", stale_after: float = 150.0) -> dict:
+def get_neighbors(interface: str = "eth0", stale_after: float = _DEFAULT_STALE_AFTER) -> dict:
     start_listener(interface)
 
+    now = time.time()
     with _lock:
-        neighbor = _neighbors.get(interface)
+        neighbors = list(_neighbors.values())
 
-    if not neighbor:
-        return {"interface": interface, "present": False}
+    fresh = []
+    for neighbor in neighbors:
+        age = now - neighbor["last_seen"]
+        if age > stale_after:
+            continue
+        entry = dict(neighbor)
+        entry["age_seconds"] = int(age)
+        fresh.append(entry)
+    fresh.sort(key=lambda n: n["age_seconds"])
 
-    age = time.time() - neighbor["last_seen"]
-    if age > stale_after:
-        return {"interface": interface, "present": False}
-
-    result = dict(neighbor)
-    result["interface"] = interface
-    result["present"] = True
-    result["age_seconds"] = int(age)
-    return result
+    return {"interface": interface, "present": len(fresh) > 0, "neighbors": fresh}
