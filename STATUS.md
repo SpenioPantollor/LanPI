@@ -424,6 +424,41 @@ breaking sudo for everyone. This makes every earlier "passwordless
 sudo" fix in this file (eth0 IP mode, AP up/down, wifi connect/forget)
 actually reliable going forward instead of session-cache-dependent.
 
+**S7 Read Tag: real live bug found and fixed 2026-08-25**, first
+attempt against the actual S7-1200 on this segment came back "read
+failed (return code 0x04)". Root cause: `_parse_read_var_response()`
+copied the SZL functions' `17 + param_len` data-section offset
+verbatim, but that's only correct for UserData (rosctr 0x07) responses
+-- Read Var's response is Ack_Data (rosctr 0x03), and Ack/Ack_Data PDUs
+carry two extra header bytes (error class + error code) that Job/
+UserData PDUs don't, shifting the real data section to `19 +
+param_len`. Reading 2 bytes early landed on the parameter section's
+own function-code byte (0x04, Read Var's own function code) instead of
+the item's actual return code -- a plausible-looking but meaningless
+value, coincidentally absent from `_SZL_RETURN_CODE_MESSAGES` too,
+which is what surfaced it as an "unknown" failure rather than silently
+wrong data. Fixed: `_parse_read_var_response()` now checks rosctr,
+reads/validates the header-level error class/code (a PDU-level
+rejection would show up there, before any per-item return code even
+exists), and uses the correct `19 + param_len` offset. Tests updated
+to build a structurally-correct Ack_Data frame (extra header bytes
+included) and cover the header-level-error path.
+
+**Dashboard reordered: Neighbors (LLDP/CDP/MNDP) moved next to Test
+Port (2026-08-25)**, user-requested -- previously sat after Link Event
+History/IP Conflict Detection/DHCP Server Detection, now immediately
+follow the Test Port (eth0) card. Pure DOM reorder in `index.html`;
+`layoutCards()`'s masonry logic in `app.js` is already DOM-order-driven
+(fixed column-pair anchoring for `.card-wide`, round-robin for the
+rest), so no JS/CSS change needed.
+
+**Version bumped to 0.2.6 (2026-08-25)**: this session added PROFINET
+DCP scanning, Siemens name decoding, S7 CPU identification, S7 Read
+Tag, LLDP/CDP/MNDP multi-neighbor + 60s-purge support, and the
+passwordless-sudo root-cause fix -- enough accumulated since 0.2.5 to
+warrant a bump. Single `VERSION` file at the repo root (see v0.2.3
+Foundation below), no other file hardcodes it.
+
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
 read into a full diagnostic toolset: Device Identification (FC43/
@@ -1641,13 +1676,14 @@ from before this date, that history no longer exists.
   against an S7-300/400 (the CPU family nmap's reference script and
   this module's field offsets were originally built around) or an
   S7-1500 -- only the S7-1200 has been confirmed live so far.
-- S7 "Read Tag" (`read_tag()` in the same module, 2026-08-25) is
-  cross-checked byte-for-byte against a known real-world Read Var
-  request example and unit-tested, but **not yet live-verified against
-  a real PLC's actual DB/M/I/Q content** -- the request/response frame
-  structure is well-established (same convention every open-source S7
-  client uses), but an actual read against real process data hasn't
-  been tried yet. Do that before relying on it for anything beyond a
+- S7 "Read Tag" (`read_tag()` in the same module, 2026-08-25): the
+  request builder is cross-checked byte-for-byte against a known
+  real-world Read Var request example. First live attempt against the
+  real S7-1200 found and fixed a real response-parsing bug (wrong data
+  offset -- see Summary above); **still pending a confirmed successful
+  read of real DB/M/I/Q content** after that fix (the failing attempt
+  never got far enough to prove the success path, only the error path,
+  works end-to-end). Retest before relying on it for anything beyond a
   quick sanity check.
 
 Passive PROFINET/S7 traffic detection and the Kamstrup device

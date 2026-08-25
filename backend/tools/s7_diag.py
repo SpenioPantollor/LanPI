@@ -169,16 +169,30 @@ def _build_read_var_request(area_code: int, db_number: int, byte_offset: int, bi
 
 def _parse_read_var_response(frame: bytes, expected_bytes: int) -> tuple[bytes | None, str | None]:
     """Returns (raw_data, error_message) -- exactly one of the two is
-    None. Reuses the same header layout (data section starts right
-    after the parameter, at 17 + param_len) that _szl_return_code()
-    already relies on -- that offset is a general S7 header fact, not
-    specific to the SZL service. The item's own return code reuses
-    _SZL_RETURN_CODE_MESSAGES since it's the same S7comm-wide DataItem
-    return-code table (0xFF success, 0x0A object does not exist, ...)."""
-    if len(frame) < 17 or frame[7] != _S7_PROTOCOL_ID:
+    None. Unlike the SZL/UserData responses above (rosctr 0x07, whose
+    header stays the plain 10 bytes for both request and response), a
+    Read Var response is Ack_Data (rosctr 0x03) -- and Ack/Ack_Data
+    PDUs carry two extra header bytes, error class + error code, right
+    after the normal 10-byte header and before the parameter section
+    (confirmed live 2026-08-25: without this +2, the byte read as the
+    item's own return code was actually the parameter section's own
+    function-code byte, 0x04 -- a plausible-looking but wrong "return
+    code" that happened to have no entry in _SZL_RETURN_CODE_MESSAGES
+    either, which is what surfaced this). So the data section here
+    starts at 19 + param_len, not the SZL functions' 17 + param_len.
+    The item's own return code reuses _SZL_RETURN_CODE_MESSAGES since
+    it's the same S7comm-wide DataItem return-code table (0xFF
+    success, 0x0A object does not exist, ...)."""
+    if len(frame) < 19 or frame[7] != _S7_PROTOCOL_ID:
         return None, "invalid or no response"
+    rosctr = frame[8]
+    if rosctr not in (0x02, 0x03):
+        return None, f"unexpected response type (rosctr 0x{rosctr:02x})"
+    error_class, error_code = frame[17], frame[18]
+    if error_class != 0 or error_code != 0:
+        return None, f"S7 PDU error (class 0x{error_class:02x}, code 0x{error_code:02x})"
     param_len = struct.unpack("!H", frame[13:15])[0]
-    item_offset = 17 + param_len
+    item_offset = 19 + param_len
     if item_offset + 4 > len(frame):
         return None, "short response"
     return_code = frame[item_offset]

@@ -241,13 +241,17 @@ def test_build_read_var_request_word_doubles_count_for_byte_size():
     assert item[9:12] == bytes([0, 0, 10 * 8])  # address = byte 10 << 3
 
 
-def _read_var_ack_frame(return_code: int, data: bytes) -> bytes:
-    """Builds a minimal Ack_Data (rosctr=0x03) Read Var response frame
-    with one item: return_code + transport_size(0x04) + length(bits) +
-    data."""
+def _read_var_ack_frame(return_code: int, data: bytes, error_class: int = 0, error_code: int = 0) -> bytes:
+    """Builds a minimal Ack_Data (rosctr=0x03) Read Var response frame:
+    the normal 10-byte header, PLUS the 2 extra header bytes
+    (error_class/error_code) that Ack/Ack_Data PDUs carry and Job/
+    UserData PDUs don't -- then one item: return_code +
+    transport_size(0x04) + length(bits) + data."""
     item_data = bytes([return_code, 0x04]) + struct.pack("!H", len(data) * 8) + data
     parameter = bytes([0x04, 0x01])  # function=Read Var, item count=1
-    header = struct.pack("!BBHHHH", 0x32, 0x03, 0x0000, 0x0001, len(parameter), len(item_data))
+    header = struct.pack(
+        "!BBHHHHBB", 0x32, 0x03, 0x0000, 0x0001, len(parameter), len(item_data), error_class, error_code
+    )
     cotp = bytes([0x02, 0xF0, 0x80])
     s7_pdu = header + parameter + item_data
     tpkt = struct.pack("!BBH", 0x03, 0x00, 4 + len(cotp) + len(s7_pdu))
@@ -272,6 +276,15 @@ def test_parse_read_var_response_reports_short_response():
     data, error = s7_diag._parse_read_var_response(b"\x03\x00\x00\x04", 1)
     assert data is None
     assert error == "invalid or no response"
+
+
+def test_parse_read_var_response_reports_pdu_level_error():
+    # error_class/error_code set (non-zero) means the whole PDU was
+    # rejected before any per-item return code was even produced.
+    frame = _read_var_ack_frame(0xFF, b"\x2a", error_class=0x81, error_code=0x04)
+    data, error = s7_diag._parse_read_var_response(frame, 1)
+    assert data is None
+    assert error == "S7 PDU error (class 0x81, code 0x04)"
 
 
 def test_decode_tag_value_bit():
