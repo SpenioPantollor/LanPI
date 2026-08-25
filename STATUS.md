@@ -297,23 +297,43 @@ it as unused dead weight. The three cards were then made double-width
 (`.card-wide`) so the wider table had room, via a 2-column-span
 extension to `layoutCards()`'s fixed-column masonry.
 
-**That 2-column-span attempt was itself replaced within the same
-session** (user-reported: "balaganas" -- a mess on the dashboard) --
-spanning into whichever column the round-robin happened to land on
-meant these 3 cards could interleave unpredictably with the narrow
-cards around them, and the wrap-around edge case (a span-2 card
-landing on the last column) made it worse. Replaced with a
-fundamentally simpler mechanism: `.card-full-row` (renamed from
-`.card-wide`) takes the *entire* container width rather than 2 of N
-columns, stacking below whichever column is currently tallest and
-resetting every column to that same height afterward, so the next
-normal card starts a clean round-robin from column 0. This is what
-makes LLDP/CDP/MNDP -- 3 of these in a row in the DOM -- render as 3
-unmistakable full-width rows stacked one after another ("sudedam
-visus iš eilės", user's own phrasing) instead of scattered through
-the narrow-card columns. Also strictly simpler code than the span-2
-version it replaced, and has no equivalent wrap-around edge case to
-accept.
+**That 2-column-span attempt went through two more iterations the same
+session before landing.** First replacement (user-reported:
+"balaganas" -- a mess on the dashboard): the *diagnosis at the time*
+was that spanning 2-of-N columns was inherently the problem, so it
+was replaced with `.card-full-row`, taking the *entire* container
+width instead and resetting every column to the same height
+afterward. The user then clarified the double-width look itself was
+fine ("buvo gerai 2 stulpelių pločio") -- the actual bug was that the
+original span-2 code picked *whichever* column pair the shared
+round-robin counter happened to be at when it reached each wide card,
+so LLDP/CDP/MNDP (three in a row in the DOM) could each land in a
+*different* pair and appear staggered diagonally instead of stacked
+directly below one another. Second replacement, the one that actually
+stuck: `.card-wide` restored (still 2 columns, not full-width), but
+now always anchored to the *same fixed pair* (columns 0-1) regardless
+of the narrow cards' round-robin state -- consecutive wide cards
+stack top of `Math.max(colHeights[0], colHeights[1])`, one directly
+below the previous, guaranteeing DOM order matches visual stacking
+order. Narrow cards keep their own independent round-robin across all
+columns unaffected, including 0-1 -- they simply continue below
+whatever height the wide-card stack left there.
+
+**Table horizontal-scroll fixed the same session**: `.data-table`'s
+shared default is `white-space: nowrap` (deliberately, for the many
+numeric-heavy tables elsewhere in the app), which meant a long free
+-text field -- LLDP's `system_description` especially, real examples
+seen this session ran 80+ characters -- forced these three tables
+wider than their card, triggering `.table-scroll`'s horizontal
+scrollbar. User-requested fixed-width, wrapping columns instead:
+`#lldp-table`/`#cdp-table`/`#mndp-table` get `table-layout: fixed`
+(column widths independent of content, evenly distributed since none
+have an explicit width) plus `white-space: normal` +
+`overflow-wrap: break-word` on their cells (wraps at word boundaries,
+breaking mid-word only if a single token still doesn't fit). Scoped
+to these three tables by ID, not applied to `.data-table` globally --
+the other tables' nowrap-plus-horizontal-scroll behavior is
+unaffected and wasn't asked to change.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus

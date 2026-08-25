@@ -1079,16 +1079,20 @@ document.getElementById("capture-stop-btn").addEventListener("click", stopCaptur
 // things like an ARP scan) -- only its vertical offset within its own
 // column does, and only its own column's cards shift as a result.
 //
-// A card marked .card-full-row (the LLDP/CDP/MNDP neighbor tables --
-// user-requested 2026-08-25, superseding an earlier 2-column-span
-// attempt the same day that just looked messy once it wrapped between
-// narrow columns) takes the full container width instead of one
-// column, stacking below whichever column is currently tallest, and
-// resets every column back to that same new height -- the next
-// (normal, 1-column) card then starts a fresh round-robin from
-// column 0. This is what makes 3 of these in a row (LLDP, CDP, MNDP)
-// render as 3 clean full-width rows stacked one after another,
-// instead of interleaving with the narrow cards around them.
+// A card marked .card-wide (the LLDP/CDP/MNDP neighbor tables) always
+// spans the same fixed pair of columns (0-1), independent of the
+// narrow cards' own round-robin -- user-requested 2026-08-25, fixing
+// an earlier version where a wide card's column pair depended on
+// wherever the shared round-robin counter happened to be when it was
+// reached, so consecutive wide cards could land in *different* column
+// pairs and appear staggered diagonally instead of stacked directly
+// below one another ("balaganas", user-reported). Anchoring to a
+// fixed pair makes DOM-order sequence and visual stacking order
+// match: LLDP, CDP, MNDP land one directly below the next. Narrow
+// cards keep their own independent round-robin across every column
+// (including 0-1) and simply continue below the wide stack's height
+// in whichever of those columns they land in -- no special-casing
+// needed there, colHeights already reflects it.
 function layoutCards() {
   const container = document.querySelector("main");
   const cards = Array.from(container.querySelectorAll(".card"));
@@ -1111,13 +1115,14 @@ function layoutCards() {
   const colHeights = new Array(columns).fill(0);
   let nextCol = 0;
   cards.forEach((card) => {
-    if (card.classList.contains("card-full-row")) {
-      const top = Math.max(...colHeights);
-      card.style.width = `${containerWidth}px`;
+    if (card.classList.contains("card-wide") && columns >= 2) {
+      const top = Math.max(colHeights[0], colHeights[1]);
+      card.style.width = `${colWidth * 2 + gap}px`;
       card.style.left = "0px";
       card.style.top = `${top}px`;
-      colHeights.fill(top + card.offsetHeight + gap);
-      nextCol = 0;
+      const newHeight = top + card.offsetHeight + gap;
+      colHeights[0] = newHeight;
+      colHeights[1] = newHeight;
       return;
     }
 

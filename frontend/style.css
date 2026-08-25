@@ -180,13 +180,11 @@ main {
   box-sizing: border-box;
 }
 
-/* .card-full-row itself sets nothing -- layoutCards() (app.js) reads
-   the class and computes width/left directly (the full container
-   width, stacked below whatever's already placed), since that's only
-   known at layout time, not in CSS. Used by the LLDP/CDP/MNDP
-   neighbor tables so they render as clean full-width rows, one after
-   another, instead of interleaving with the narrow cards around
-   them. */
+/* .card-wide itself sets nothing -- layoutCards() (app.js) reads the
+   class and computes width/left directly (a fixed 2-column span,
+   always the same pair of columns), since that's only known at
+   layout time, not in CSS. Used by the LLDP/CDP/MNDP neighbor
+   tables so they stack directly below one another in DOM order. */
 
 /* Utility pages with one or two data-heavy cards (Traffic, IP
    Scanner, ...) -- the dashboard's JS masonry (fixed ~22rem-minimum
@@ -542,6 +540,31 @@ button:disabled {
 #traffic-talkers-table th:nth-child(2),
 #traffic-talkers-table td:nth-child(2) {
   text-align: right;
+}
+
+/* Fixed column widths + wrapping content instead of a horizontal
+   scrollbar -- user-requested 2026-08-25: these three tables can
+   carry long free-text fields (LLDP's system_description especially),
+   and .data-table's default (nowrap, shrink-to-fit) forced them wider
+   than the card, triggering .table-scroll's horizontal scroll.
+   table-layout: fixed makes column widths independent of content
+   length (evenly distributed, since no column has an explicit
+   width); overflow-wrap lets a single long word that still doesn't
+   fit break mid-word rather than overflowing its cell. */
+#lldp-table,
+#cdp-table,
+#mndp-table {
+  table-layout: fixed;
+}
+
+#lldp-table th,
+#lldp-table td,
+#cdp-table th,
+#cdp-table td,
+#mndp-table th,
+#mndp-table td {
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 form {
