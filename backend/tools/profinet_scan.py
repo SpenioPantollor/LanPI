@@ -64,38 +64,62 @@ _IP_INFO_TEXT = {0: "no IP set", 1: "IP set", 2: "IP set via DHCP"}
 # NameOfStation, confirmed 2026-08-25): only lowercase a-z, 0-9, "-",
 # "." are legal (plus length limits -- 240 chars overall, 63 per
 # "."-separated component -- and a name can't start/end with "-",
-# start with "port-xyz", or look like an IPv4 address). "_" is not in
-# that set, so a human-entered device name containing one (as TIA
-# Portal device names commonly do) can't go on the wire as-is --
-# Siemens/TIA Portal derives a compliant name from it instead.
+# start with "port-xyz", or look like an IPv4 address). "_"/"+"/"=" are
+# not in that set, so a human-entered engineering name containing one
+# (as TIA Portal device names commonly do) can't go on the wire as-is
+# -- TIA Portal derives a compliant "Converted Name" from it instead
+# (an official TIA Portal term/UI field, not our own name for it).
 #
-# The exact TIA Portal derivation, confirmed 2026-08-25 against two
-# real devices on the same segment (vendor_id 0x002a both times) and
-# explained by the maintainer:
-#   "prodxbtalpxbplcf320"  (raw) -> "prod_talp_plc"  (configured name)
-#   "k1cjf11xbcpu1a19e"    (raw) -> "k1cjf11_cpu1"   (configured name)
-# i.e. every "_" becomes the literal substring "xb", and a trailing
-# 4-character suffix is appended -- a checksum/hash so that two
-# different configured names that would otherwise collide after
-# encoding still end up distinct on the wire. Confirmed on 2 real
-# samples (both Siemens), not a published spec for this specific
-# derivation (unlike the base character-set rule above) -- scoped to
-# Siemens (vendor_id 0x002a) and only applied when "xb" actually
-# appears, so a name that doesn't match this shape is left alone
-# rather than mis-decoded.
-_SIEMENS_VENDOR_ID = "0x002a"
-_SIEMENS_UNDERSCORE_ESCAPE = "xb"
+# The exact derivation (source: Siemens SiePortal forum, "Procedure to
+# convert PROFINET device names", post 301814 -- the live page needs
+# JS/login and couldn't be fetched directly, content relayed
+# 2026-08-25): lowercase the name, replace "_"->"xb", "+"->"xn",
+# "="->"xv", then append a CRC-16/ARC (poly 0x8005, init 0x0000,
+# reflected in/out, xorout 0x0000 -- the classic "CRC-16"/ARC/IBM
+# variant) of the escaped string, as 4 lowercase hex digits. This is
+# **provable, not a heuristic**: our CRC-16/ARC implementation
+# reproduces the standard check value (0xbb3d for "123456789") and
+# exactly reproduces both real suffixes seen live on this segment --
+#   "prodxbtalpxbplc"  -> CRC f320 -> "prodxbtalpxbplcf320" (raw)
+#     decodes to "prod_talp_plc"
+#   "k1cjf11xbcpu1"    -> CRC a19e -> "k1cjf11xbcpu1a19e"   (raw)
+#     decodes to "k1cjf11_cpu1"
+# both confirmed against the maintainer's real (TIA-Portal-configured)
+# device names. Decoding recomputes the CRC over everything but the
+# last 4 hex characters and only unescapes if it matches -- this is
+# what makes it safe to apply to *any* device (not gated to a specific
+# vendor_id): a name that was never TIA-Portal-converted will only
+# "accidentally" pass by pure chance (1 in 65536), vs. a substring-only
+# check like "contains xb" which has no such guarantee at all.
+_SIEMENS_ESCAPE_TO_CHAR = {"xb": "_", "xn": "+", "xv": "="}
 _SIEMENS_SUFFIX_LEN = 4
 
 
-def _decode_siemens_station_name(vendor_id: str | None, raw_name: str | None) -> str | None:
-    if vendor_id != _SIEMENS_VENDOR_ID or not raw_name:
+def _crc16_arc(data: bytes) -> int:
+    crc = 0x0000
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0xA001 if crc & 1 else crc >> 1
+    return crc & 0xFFFF
+
+
+def _decode_siemens_station_name(raw_name: str | None) -> str | None:
+    if not raw_name or len(raw_name) <= _SIEMENS_SUFFIX_LEN:
         return None
-    if _SIEMENS_UNDERSCORE_ESCAPE not in raw_name:
+    body, suffix = raw_name[:-_SIEMENS_SUFFIX_LEN], raw_name[-_SIEMENS_SUFFIX_LEN:]
+    try:
+        int(suffix, 16)
+        body_bytes = body.encode("ascii")
+    except (ValueError, UnicodeEncodeError):
         return None
-    if len(raw_name) <= _SIEMENS_SUFFIX_LEN:
+    if f"{_crc16_arc(body_bytes):04x}" != suffix:
         return None
-    return raw_name[:-_SIEMENS_SUFFIX_LEN].replace(_SIEMENS_UNDERSCORE_ESCAPE, "_")
+
+    decoded = body
+    for token, char in _SIEMENS_ESCAPE_TO_CHAR.items():
+        decoded = decoded.replace(token, char)
+    return decoded
 
 
 def _interface_mac(interface: str) -> bytes | None:
@@ -194,9 +218,7 @@ def _parse_response(frame: bytes) -> dict | None:
 
         offset = block_end + (block_len & 1)  # odd-length block data is followed by one pad byte
 
-    device["name_of_station_decoded"] = _decode_siemens_station_name(
-        device["vendor_id"], device["name_of_station"]
-    )
+    device["name_of_station_decoded"] = _decode_siemens_station_name(device["name_of_station"])
     return device
 
 

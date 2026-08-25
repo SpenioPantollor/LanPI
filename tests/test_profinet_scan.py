@@ -90,38 +90,50 @@ def test_parse_response_extracts_device_properties_and_handles_odd_length_paddin
     device = profinet_scan._parse_response(_response_frame(blocks))
 
     assert device["name_of_station"] == "pn-io"
-    assert device["name_of_station_decoded"] is None  # no "xb" marker -- not this pattern
+    assert device["name_of_station_decoded"] is None  # "-io" tail isn't valid hex -- not this pattern
     assert device["vendor_value"] == "S7-300"
     assert device["vendor_id"] == "0x002a"
     assert device["device_id"] == "0x0105"
     assert device["device_role"] == "None"
 
 
+def test_crc16_arc_matches_standard_check_value():
+    # The published CRC-16/ARC check value for the ASCII string "123456789"
+    # is 0xbb3d -- confirms this is the right CRC variant before trusting
+    # it to validate/generate real device names.
+    assert profinet_scan._crc16_arc(b"123456789") == 0xBB3D
+
+
 def test_decode_siemens_station_name_matches_confirmed_real_world_pairs():
     # Both pairs confirmed 2026-08-25 against real devices on the same
-    # segment (see profinet_scan.py's docstring above _decode_siemens_station_name).
-    assert profinet_scan._decode_siemens_station_name("0x002a", "prodxbtalpxbplcf320") == "prod_talp_plc"
-    assert profinet_scan._decode_siemens_station_name("0x002a", "k1cjf11xbcpu1a19e") == "k1cjf11_cpu1"
+    # segment -- CRC-verified, not a guess (see profinet_scan.py's
+    # docstring above _decode_siemens_station_name).
+    assert profinet_scan._decode_siemens_station_name("prodxbtalpxbplcf320") == "prod_talp_plc"
+    assert profinet_scan._decode_siemens_station_name("k1cjf11xbcpu1a19e") == "k1cjf11_cpu1"
 
 
-def test_decode_siemens_station_name_ignores_non_siemens_vendor():
-    assert profinet_scan._decode_siemens_station_name("0x0010", "prodxbtalpxbplcf320") is None
-    assert profinet_scan._decode_siemens_station_name(None, "prodxbtalpxbplcf320") is None
+def test_decode_siemens_station_name_decodes_plus_and_equals_escapes():
+    body = "axnbxvc"  # "a" + "xn"(->+) + "b" + "xv"(->=) + "c" = "a+b=c"
+    suffix = f"{profinet_scan._crc16_arc(body.encode('ascii')):04x}"
+    assert profinet_scan._decode_siemens_station_name(body + suffix) == "a+b=c"
 
 
-def test_decode_siemens_station_name_returns_none_without_escape_marker():
-    # A plain Siemens name with no "xb" isn't this pattern -- leave it alone
-    # rather than mis-stripping a trailing 4 characters that were never a suffix.
-    assert profinet_scan._decode_siemens_station_name("0x002a", "pn-io") is None
-    assert profinet_scan._decode_siemens_station_name("0x002a", None) is None
+def test_decode_siemens_station_name_rejects_crc_mismatch():
+    # Ends in 4 hex chars, but they aren't a valid CRC of the rest --
+    # a name that merely looks like this pattern by coincidence, not a
+    # real TIA-Portal-converted one. Must not decode.
+    assert profinet_scan._decode_siemens_station_name("prodxbtalpxbplcffff") is None
+
+
+def test_decode_siemens_station_name_returns_none_for_non_matching_names():
+    assert profinet_scan._decode_siemens_station_name("pn-io") is None  # too short / no valid CRC tail
+    assert profinet_scan._decode_siemens_station_name(None) is None
 
 
 def test_parse_response_populates_decoded_name_for_a_real_confirmed_pair():
     name_block = _block(profinet_scan._OPT_DEVICE, profinet_scan._SUB_DEV_NAME_OF_STATION,
                          b"\x00\x00" + b"k1cjf11xbcpu1a19e")
-    id_block = _block(profinet_scan._OPT_DEVICE, profinet_scan._SUB_DEV_ID,
-                       b"\x00\x00" + struct.pack(">HH", 0x002A, 0x0114))
-    device = profinet_scan._parse_response(_response_frame(name_block + id_block))
+    device = profinet_scan._parse_response(_response_frame(name_block))
 
     assert device["name_of_station"] == "k1cjf11xbcpu1a19e"
     assert device["name_of_station_decoded"] == "k1cjf11_cpu1"

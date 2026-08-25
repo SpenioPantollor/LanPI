@@ -73,7 +73,7 @@
           <thead>
             <tr>
               <th>Name (raw)</th>
-              <th title="Best-effort decoded device name -- only for Siemens devices whose raw name follows a confirmed TIA Portal encoding pattern (drop a trailing 4-char suffix, replace &quot;xb&quot; with &quot;_&quot;). Not an official spec, so a blank here just means this device's name doesn't match that pattern.">Name (decoded)</th>
+              <th title="Decodes TIA Portal's PROFINET 'Converted Name' encoding: lowercase + escape _/+/= as xb/xn/xv + a trailing CRC-16/ARC checksum. Verified via the checksum, not a guess -- blank means this device's raw name isn't TIA-Portal-encoded (checksum didn't match).">Name (decoded)</th>
               <th>MAC</th>
               <th>IP</th>
               <th>Vendor / Type</th>
