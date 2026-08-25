@@ -67,35 +67,41 @@ deliberately not recorded here -- see the git-history-scrubbing lesson
 in memory: write the generic version from the start, not a
 to-be-scrubbed one.) The returned NameOfStation contained an `xb`
 pattern (single "x", user later clarified an earlier "xxb" report was
-their own keyboard double-typing "x") in place of `_` -- a real
-device's configured name can't literally contain underscores
-(PROFINET station names are DNS-label-like: lowercase letters, digits,
-`-`, `.` only), so TIA Portal encodes disallowed characters somehow
-when deriving the wire name.
+their own keyboard double-typing "x") in place of `_`. **Confirmed
+against the spec itself, 2026-08-25 (maintainer-provided, IEC
+61158-6-10)**: PROFINET DCP NameOfStation is restricted to lowercase
+`a-z`, `0-9`, `-`, `.` (plus length limits and a few structural rules
+-- 240 chars overall, 63 per `.`-separated component, can't start/end
+with `-`, can't start with `port-xyz`, can't look like an IPv4
+address) -- `_` is not legal, so a human-entered device name
+containing one can't go on the wire as-is.
 
 **Station-name decoding confirmed 2026-08-25** (maintainer-provided,
 against real hardware -- a second Siemens device, an S7-1500 PLCSIM
 instance, showed up on the same segment shortly after and gave a
-second confirmed pair): the rule is "drop a trailing 4-character
-suffix, then replace `xb` with `_`" --
+second confirmed pair, and the maintainer independently explained the
+exact TIA Portal derivation): every `_` becomes the literal substring
+`xb`, and a trailing 4-character suffix is appended -- a
+checksum/hash so that two different configured names that would
+otherwise collide after encoding still end up distinct on the wire.
+Confirmed exact matches:
 `prodxbtalpxbplcf320` -> `prod_talp_plc` and
-`k1cjf11xbcpu1a19e` -> `k1cjf11_cpu1`, both exact matches against the
-maintainer's known real (TIA-Portal-configured) device names. The
-suffix's own purpose is still unconfirmed (plausibly a uniqueness tag
-TIA Portal appends automatically), but it doesn't need to be
-understood to strip it correctly. Implemented as
+`k1cjf11xbcpu1a19e` -> `k1cjf11_cpu1`, both against the maintainer's
+known real (TIA-Portal-configured) device names. Implemented as
 `_decode_siemens_station_name()` in `profinet_scan.py`, deliberately
 scoped to `vendor_id == 0x002a` (Siemens) and only applied when `xb`
 is actually present -- a name that doesn't match this shape is left
-alone rather than mis-decoded (this is a 2-sample heuristic, not a
-published spec; the same `xb` pattern also appears independently in
-nmap's own `multicast-profinet-discovery.nse` docstring example, which
-is what suggested a real reproducible encoding rather than a parsing
-bug in the first place). Both raw and decoded names are now returned
-(`name_of_station` / `name_of_station_decoded`) and shown as two
-columns on `/profinet.html`. Passive PROFINET/S7 *traffic detection*
-(the Traffic page's EtherType/port heuristics) already existed
-separately and is unaffected.
+alone rather than mis-decoded (this derivation is confirmed on 2 real
+samples plus the maintainer's direct explanation, not a published
+Siemens spec document; the same `xb` pattern also appears
+independently in nmap's own `multicast-profinet-discovery.nse`
+docstring example, which is what suggested a real reproducible
+encoding rather than a parsing bug in the first place). Both raw and
+decoded names are now returned (`name_of_station` /
+`name_of_station_decoded`) and shown as two columns on
+`/profinet.html`. Passive PROFINET/S7 *traffic detection* (the
+Traffic page's EtherType/port heuristics) already existed separately
+and is unaffected.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus

@@ -60,20 +60,29 @@ _DEVICE_ROLE_FLAGS = {
 }
 _IP_INFO_TEXT = {0: "no IP set", 1: "IP set", 2: "IP set via DHCP"}
 
-# Siemens TIA Portal station-name decoding, confirmed 2026-08-25 against
-# two real devices on the same segment (vendor_id 0x002a both times):
-#   "prodxbtalpxbplcf320"  (raw) -> "prod_talp_plc"  (configured, per user)
-#   "k1cjf11xbcpu1a19e"    (raw) -> "k1cjf11_cpu1"   (configured, per user)
-# In both cases: drop a trailing 4-char suffix (purpose unconfirmed --
-# most likely a uniqueness tag TIA Portal appends when generating a
-# valid PROFINET name from the human-entered device name), then
-# replace every "xb" with "_" (the only invalid character PROFINET
-# names actually need to escape in practice -- station names are
-# DNS-label-like: lowercase letters, digits, "-", "." only). Only two
-# confirmed samples, so this is a best-effort heuristic, not a spec --
-# scoped to Siemens (vendor_id 0x002a) and only applied when "xb"
-# actually appears, so a name that doesn't match this shape is left
-# alone rather than mis-decoded.
+# PROFINET station names are restricted by spec (IEC 61158-6-10, DCP
+# NameOfStation, confirmed 2026-08-25): only lowercase a-z, 0-9, "-",
+# "." are legal (plus length limits -- 240 chars overall, 63 per
+# "."-separated component -- and a name can't start/end with "-",
+# start with "port-xyz", or look like an IPv4 address). "_" is not in
+# that set, so a human-entered device name containing one (as TIA
+# Portal device names commonly do) can't go on the wire as-is --
+# Siemens/TIA Portal derives a compliant name from it instead.
+#
+# The exact TIA Portal derivation, confirmed 2026-08-25 against two
+# real devices on the same segment (vendor_id 0x002a both times) and
+# explained by the maintainer:
+#   "prodxbtalpxbplcf320"  (raw) -> "prod_talp_plc"  (configured name)
+#   "k1cjf11xbcpu1a19e"    (raw) -> "k1cjf11_cpu1"   (configured name)
+# i.e. every "_" becomes the literal substring "xb", and a trailing
+# 4-character suffix is appended -- a checksum/hash so that two
+# different configured names that would otherwise collide after
+# encoding still end up distinct on the wire. Confirmed on 2 real
+# samples (both Siemens), not a published spec for this specific
+# derivation (unlike the base character-set rule above) -- scoped to
+# Siemens (vendor_id 0x002a) and only applied when "xb" actually
+# appears, so a name that doesn't match this shape is left alone
+# rather than mis-decoded.
 _SIEMENS_VENDOR_ID = "0x002a"
 _SIEMENS_UNDERSCORE_ESCAPE = "xb"
 _SIEMENS_SUFFIX_LEN = 4
