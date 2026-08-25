@@ -72,7 +72,8 @@
         <table id="profinet-table" class="data-table" hidden>
           <thead>
             <tr>
-              <th>Name</th>
+              <th>Name (raw)</th>
+              <th title="Best-effort decoded device name -- only for Siemens devices whose raw name follows a confirmed TIA Portal encoding pattern (drop a trailing 4-char suffix, replace &quot;xb&quot; with &quot;_&quot;). Not an official spec, so a blank here just means this device's name doesn't match that pattern.">Name (decoded)</th>
               <th>MAC</th>
               <th>IP</th>
               <th>Vendor / Type</th>

@@ -60,6 +60,34 @@ _DEVICE_ROLE_FLAGS = {
 }
 _IP_INFO_TEXT = {0: "no IP set", 1: "IP set", 2: "IP set via DHCP"}
 
+# Siemens TIA Portal station-name decoding, confirmed 2026-08-25 against
+# two real devices on the same segment (vendor_id 0x002a both times):
+#   "prodxbtalpxbplcf320"  (raw) -> "prod_talp_plc"  (configured, per user)
+#   "k1cjf11xbcpu1a19e"    (raw) -> "k1cjf11_cpu1"   (configured, per user)
+# In both cases: drop a trailing 4-char suffix (purpose unconfirmed --
+# most likely a uniqueness tag TIA Portal appends when generating a
+# valid PROFINET name from the human-entered device name), then
+# replace every "xb" with "_" (the only invalid character PROFINET
+# names actually need to escape in practice -- station names are
+# DNS-label-like: lowercase letters, digits, "-", "." only). Only two
+# confirmed samples, so this is a best-effort heuristic, not a spec --
+# scoped to Siemens (vendor_id 0x002a) and only applied when "xb"
+# actually appears, so a name that doesn't match this shape is left
+# alone rather than mis-decoded.
+_SIEMENS_VENDOR_ID = "0x002a"
+_SIEMENS_UNDERSCORE_ESCAPE = "xb"
+_SIEMENS_SUFFIX_LEN = 4
+
+
+def _decode_siemens_station_name(vendor_id: str | None, raw_name: str | None) -> str | None:
+    if vendor_id != _SIEMENS_VENDOR_ID or not raw_name:
+        return None
+    if _SIEMENS_UNDERSCORE_ESCAPE not in raw_name:
+        return None
+    if len(raw_name) <= _SIEMENS_SUFFIX_LEN:
+        return None
+    return raw_name[:-_SIEMENS_SUFFIX_LEN].replace(_SIEMENS_UNDERSCORE_ESCAPE, "_")
+
 
 def _interface_mac(interface: str) -> bytes | None:
     try:
@@ -133,6 +161,7 @@ def _parse_response(frame: bytes) -> dict | None:
         "gateway": None,
         "ip_info": None,
         "name_of_station": None,
+        "name_of_station_decoded": None,
         "vendor_value": None,
         "vendor_id": None,
         "device_id": None,
@@ -156,6 +185,9 @@ def _parse_response(frame: bytes) -> dict | None:
 
         offset = block_end + (block_len & 1)  # odd-length block data is followed by one pad byte
 
+    device["name_of_station_decoded"] = _decode_siemens_station_name(
+        device["vendor_id"], device["name_of_station"]
+    )
     return device
 
 

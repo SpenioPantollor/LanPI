@@ -90,10 +90,41 @@ def test_parse_response_extracts_device_properties_and_handles_odd_length_paddin
     device = profinet_scan._parse_response(_response_frame(blocks))
 
     assert device["name_of_station"] == "pn-io"
+    assert device["name_of_station_decoded"] is None  # no "xb" marker -- not this pattern
     assert device["vendor_value"] == "S7-300"
     assert device["vendor_id"] == "0x002a"
     assert device["device_id"] == "0x0105"
     assert device["device_role"] == "None"
+
+
+def test_decode_siemens_station_name_matches_confirmed_real_world_pairs():
+    # Both pairs confirmed 2026-08-25 against real devices on the same
+    # segment (see profinet_scan.py's docstring above _decode_siemens_station_name).
+    assert profinet_scan._decode_siemens_station_name("0x002a", "prodxbtalpxbplcf320") == "prod_talp_plc"
+    assert profinet_scan._decode_siemens_station_name("0x002a", "k1cjf11xbcpu1a19e") == "k1cjf11_cpu1"
+
+
+def test_decode_siemens_station_name_ignores_non_siemens_vendor():
+    assert profinet_scan._decode_siemens_station_name("0x0010", "prodxbtalpxbplcf320") is None
+    assert profinet_scan._decode_siemens_station_name(None, "prodxbtalpxbplcf320") is None
+
+
+def test_decode_siemens_station_name_returns_none_without_escape_marker():
+    # A plain Siemens name with no "xb" isn't this pattern -- leave it alone
+    # rather than mis-stripping a trailing 4 characters that were never a suffix.
+    assert profinet_scan._decode_siemens_station_name("0x002a", "pn-io") is None
+    assert profinet_scan._decode_siemens_station_name("0x002a", None) is None
+
+
+def test_parse_response_populates_decoded_name_for_a_real_confirmed_pair():
+    name_block = _block(profinet_scan._OPT_DEVICE, profinet_scan._SUB_DEV_NAME_OF_STATION,
+                         b"\x00\x00" + b"k1cjf11xbcpu1a19e")
+    id_block = _block(profinet_scan._OPT_DEVICE, profinet_scan._SUB_DEV_ID,
+                       b"\x00\x00" + struct.pack(">HH", 0x002A, 0x0114))
+    device = profinet_scan._parse_response(_response_frame(name_block + id_block))
+
+    assert device["name_of_station"] == "k1cjf11xbcpu1a19e"
+    assert device["name_of_station_decoded"] == "k1cjf11_cpu1"
 
 
 def test_interface_mac_reads_sysfs_address(tmp_path, monkeypatch):

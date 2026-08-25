@@ -65,24 +65,37 @@ request correctly -- MAC/IP/subnet/gateway, vendor/device ID, and
 device role all populated as expected. (Specific device identity/IP
 deliberately not recorded here -- see the git-history-scrubbing lesson
 in memory: write the generic version from the start, not a
-to-be-scrubbed one.) One cosmetic oddity: the returned NameOfStation
-contained an `xa`/`xb` pattern in place of what's plausibly `-`/`_`
-(a real device's configured name can't literally contain underscores
--- PROFINET station names are DNS-label-like: lowercase letters,
-digits, `-`, `.` only -- so engineering tools must encode disallowed
-characters somehow when deriving the wire name). The *exact* Siemens
-encoding scheme isn't confirmed from a spec, and the exact same `xb`
-pattern is independently visible in nmap's own
-`multicast-profinet-discovery.nse` docstring example -- suggestive
-this is a known, real, reproducible encoding, not a parsing bug on
-our end. Deliberately **not** "prettified" in the parser: guessing at
-a decode without a confirmed spec risks showing a confidently wrong
-name for what's meant to be an accurate industrial diagnostic tool;
-the raw on-wire value is passed through as-is. Revisit if the actual
-encoding rule is ever confirmed. Passive PROFINET/S7 *traffic
-detection* (the Traffic page's EtherType/port heuristics) already
-existed separately
-and is unaffected.
+to-be-scrubbed one.) The returned NameOfStation contained an `xb`
+pattern (single "x", user later clarified an earlier "xxb" report was
+their own keyboard double-typing "x") in place of `_` -- a real
+device's configured name can't literally contain underscores
+(PROFINET station names are DNS-label-like: lowercase letters, digits,
+`-`, `.` only), so TIA Portal encodes disallowed characters somehow
+when deriving the wire name.
+
+**Station-name decoding confirmed 2026-08-25** (maintainer-provided,
+against real hardware -- a second Siemens device, an S7-1500 PLCSIM
+instance, showed up on the same segment shortly after and gave a
+second confirmed pair): the rule is "drop a trailing 4-character
+suffix, then replace `xb` with `_`" --
+`prodxbtalpxbplcf320` -> `prod_talp_plc` and
+`k1cjf11xbcpu1a19e` -> `k1cjf11_cpu1`, both exact matches against the
+maintainer's known real (TIA-Portal-configured) device names. The
+suffix's own purpose is still unconfirmed (plausibly a uniqueness tag
+TIA Portal appends automatically), but it doesn't need to be
+understood to strip it correctly. Implemented as
+`_decode_siemens_station_name()` in `profinet_scan.py`, deliberately
+scoped to `vendor_id == 0x002a` (Siemens) and only applied when `xb`
+is actually present -- a name that doesn't match this shape is left
+alone rather than mis-decoded (this is a 2-sample heuristic, not a
+published spec; the same `xb` pattern also appears independently in
+nmap's own `multicast-profinet-discovery.nse` docstring example, which
+is what suggested a real reproducible encoding rather than a parsing
+bug in the first place). Both raw and decoded names are now returned
+(`name_of_station` / `name_of_station_decoded`) and shown as two
+columns on `/profinet.html`. Passive PROFINET/S7 *traffic detection*
+(the Traffic page's EtherType/port heuristics) already existed
+separately and is unaffected.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus
@@ -824,11 +837,16 @@ from before this date, that history no longer exists.
   above for why real IPs/hostnames are kept out of this repo.)
 - PROFINET DCP Identify-All scan: **fully confirmed working** —
   deployed 2026-08-25, scanned eth0's current test segment immediately
-  after restart, and a real Siemens S7-1200 (IO-Controller role)
-  answered with MAC/IP/subnet/gateway/vendor-ID/device-ID all
-  populated correctly. (Specific device identity/IP not recorded here,
-  same reasoning as LLDP above.) See Summary for the one cosmetic gap
-  found (NameOfStation display, not decoded).
+  after restart; a real Siemens S7-1200 (IO-Controller role) and,
+  shortly after, a second real device (an S7-1500 PLCSIM instance)
+  both answered correctly, confirming multi-device listing/dedup on
+  one scan works, not just a single-response path. MAC/IP/subnet/
+  gateway/vendor-ID/device-ID all populated correctly for both.
+  (Specific device identity/IP not recorded here, same reasoning as
+  LLDP above.) The maintainer separately confirmed both devices' real
+  configured names against the scan's raw NameOfStation output, which
+  is what confirmed the Siemens name-decoding heuristic in Summary
+  above.
 - Ping: **fully confirmed working** — one-shot (count=6, reached the
   target naturally, correct final stats), continuous (no count,
   stopped manually via the API, SIGINT path produced correct final
@@ -1269,9 +1287,11 @@ real-world values (an actual PROFINET/S7 device's traffic, an actual
 Kamstrup meter's register values) against hardware that hasn't been
 available to test against yet -- see "Next steps" below for those.
 
-- PROFINET DCP Identify-All scan's NameOfStation display isn't
-  "prettified" -- see the `xa`/`xb` encoding note in Summary above.
-  Cosmetic only; every other field (MAC/IP/vendor/role) is unaffected.
+- PROFINET DCP Identify-All scan's decoded-name heuristic
+  (`_decode_siemens_station_name()`) is confirmed against only 2 real
+  device names, both Siemens -- see Summary above. Correct for those,
+  but not a published spec, so treat a `None` decode as "doesn't match
+  the known pattern", not "definitely no better name exists".
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
