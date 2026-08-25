@@ -58,12 +58,30 @@ odd-length-block padding rule) verified against nmap's
 `multicast-profinet-discovery.nse` and Wireshark's `packet-pn-dcp.c`;
 8 new parser unit tests pass using a synthetic response frame matching
 that script's own real-world worked example (Siemens S7-300).
-**Not yet live-verified against a real PROFINET device** -- no such
-hardware was available this session; `socket.AF_PACKET` doesn't exist
-on macOS either, so even the send/receive path itself is untested
-outside a manual read of the code, only the pure frame-parsing logic
-has automated coverage. Passive PROFINET/S7 *traffic detection* (the
-Traffic page's EtherType/port heuristics) already existed separately
+**Live-verified the same day, immediately after deploy**: a real
+Siemens PROFINET device (an S7-1200 acting as IO-Controller) was
+reachable on eth0's current test segment and answered the DCP Identify
+request correctly -- MAC/IP/subnet/gateway, vendor/device ID, and
+device role all populated as expected. (Specific device identity/IP
+deliberately not recorded here -- see the git-history-scrubbing lesson
+in memory: write the generic version from the start, not a
+to-be-scrubbed one.) One cosmetic oddity: the returned NameOfStation
+contained an `xa`/`xb` pattern in place of what's plausibly `-`/`_`
+(a real device's configured name can't literally contain underscores
+-- PROFINET station names are DNS-label-like: lowercase letters,
+digits, `-`, `.` only -- so engineering tools must encode disallowed
+characters somehow when deriving the wire name). The *exact* Siemens
+encoding scheme isn't confirmed from a spec, and the exact same `xb`
+pattern is independently visible in nmap's own
+`multicast-profinet-discovery.nse` docstring example -- suggestive
+this is a known, real, reproducible encoding, not a parsing bug on
+our end. Deliberately **not** "prettified" in the parser: guessing at
+a decode without a confirmed spec risks showing a confidently wrong
+name for what's meant to be an accurate industrial diagnostic tool;
+the raw on-wire value is passed through as-is. Revisit if the actual
+encoding rule is ever confirmed. Passive PROFINET/S7 *traffic
+detection* (the Traffic page's EtherType/port heuristics) already
+existed separately
 and is unaffected.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
@@ -804,6 +822,13 @@ from before this date, that history no longer exists.
   populated. (Specific values aren't recorded here since this is a
   real device on the maintainer's own network -- see Hardware section
   above for why real IPs/hostnames are kept out of this repo.)
+- PROFINET DCP Identify-All scan: **fully confirmed working** —
+  deployed 2026-08-25, scanned eth0's current test segment immediately
+  after restart, and a real Siemens S7-1200 (IO-Controller role)
+  answered with MAC/IP/subnet/gateway/vendor-ID/device-ID all
+  populated correctly. (Specific device identity/IP not recorded here,
+  same reasoning as LLDP above.) See Summary for the one cosmetic gap
+  found (NameOfStation display, not decoded).
 - Ping: **fully confirmed working** — one-shot (count=6, reached the
   target naturally, correct final stats), continuous (no count,
   stopped manually via the API, SIGINT path produced correct final
@@ -1244,16 +1269,9 @@ real-world values (an actual PROFINET/S7 device's traffic, an actual
 Kamstrup meter's register values) against hardware that hasn't been
 available to test against yet -- see "Next steps" below for those.
 
-- **PROFINET DCP Identify-All scan (`profinet_scan.py`, 2026-08-25) is
-  untested beyond its pure-parser unit tests** -- no PROFINET device
-  and no Linux machine were available this session to exercise the
-  actual `AF_PACKET` send/receive path (unlike the parser logic,
-  `socket.AF_PACKET` doesn't exist on macOS at all, so this couldn't
-  even be smoke-tested locally the way other new backend code
-  normally is per this project's venv-testing discipline -- see
-  README). Deploy to the Pi and confirm the raw socket opens under
-  `CAP_NET_RAW` and a request actually goes out (tcpdump on the switch
-  port, even with no device to answer) before trusting this feature.
+- PROFINET DCP Identify-All scan's NameOfStation display isn't
+  "prettified" -- see the `xa`/`xb` encoding note in Summary above.
+  Cosmetic only; every other field (MAC/IP/vendor/role) is unaffected.
 - No authentication on the web UI or API -- **deliberate, not an
   oversight**: the maintainer's call (2026-08-17) is that this stays
   a deliberately primitive field tool (LAN-only, no auth), not a
@@ -1313,11 +1331,8 @@ available to test against yet -- see "Next steps" below for those.
 - **V0.2.3 Foundation is complete. v0.2.4 Modbus expansion is complete.
   Link event history, duplicate-IP detection, and rogue-DHCP detection
   (V0.3 backlog items) are all complete. PROFINET DCP Identify-All scan
-  is implemented but not yet live-verified (see Summary above) --
-  deploy to the Pi and test against a real PROFINET device (or at
-  least confirm the raw-socket send/receive path works at all on real
-  Linux/CAP_NET_RAW, independent of whether a device answers) before
-  trusting it.** After that: Siemens S7 diagnostics (the other half of
+  is implemented and live-verified against a real device (see
+  Summary above).** Next: Siemens S7 diagnostics (the other half of
   this session's ask), or the one remaining V0.3 backlog item (unified
   device registry -- see README), whichever the maintainer prioritizes.
 - Try the new Modbus tabs and the three new dashboard cards (Link
