@@ -293,20 +293,27 @@ more than one device, so a shape that changes at exactly 2 is more
 surprising than useful. Simplified to always render the table, even
 for a single row, and removed the now-dead `<dl id="{prefix}-single">`
 markup and its per-field population code entirely rather than leaving
-it as unused dead weight. The three cards are also now double-width
-(`.card-wide` on the `<section>`, read by `layoutCards()` in
-`app.js`) so the wider table actually has room -- the fixed-column
-masonry (see that function's own comment for why it's fixed-assignment
-rather than shortest-column packing) previously had no notion of a
-card spanning more than one column; extended to support a 2-column
-span, falling back to 1 column on a narrow (single-column) viewport
-where there's nothing to span into. One accepted rough edge: 3
-consecutive wide cards (LLDP/CDP/MNDP are exactly that) landing in a
-layout with exactly 3 total columns will all wrap into the same 2
-columns rather than using the 3rd, leaving it briefly empty until the
-next (normal-width) card fills it -- a real but minor packing
-inefficiency, not a bug (no overlap, nothing broken), consistent with
-this masonry's already-documented "simple over optimal" philosophy.
+it as unused dead weight. The three cards were then made double-width
+(`.card-wide`) so the wider table had room, via a 2-column-span
+extension to `layoutCards()`'s fixed-column masonry.
+
+**That 2-column-span attempt was itself replaced within the same
+session** (user-reported: "balaganas" -- a mess on the dashboard) --
+spanning into whichever column the round-robin happened to land on
+meant these 3 cards could interleave unpredictably with the narrow
+cards around them, and the wrap-around edge case (a span-2 card
+landing on the last column) made it worse. Replaced with a
+fundamentally simpler mechanism: `.card-full-row` (renamed from
+`.card-wide`) takes the *entire* container width rather than 2 of N
+columns, stacking below whichever column is currently tallest and
+resetting every column to that same height afterward, so the next
+normal card starts a clean round-robin from column 0. This is what
+makes LLDP/CDP/MNDP -- 3 of these in a row in the DOM -- render as 3
+unmistakable full-width rows stacked one after another ("sudedam
+visus iš eilės", user's own phrasing) instead of scattered through
+the narrow-card columns. Also strictly simpler code than the span-2
+version it replaced, and has no equivalent wrap-around edge case to
+accept.
 
 **v0.2.4 (Modbus TCP diagnostics expansion) complete as of 2026-08-22**,
 per a maintainer-provided implementation brief expanding basic Modbus

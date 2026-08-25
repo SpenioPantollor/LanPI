@@ -180,11 +180,13 @@ main {
   box-sizing: border-box;
 }
 
-/* .card-wide itself sets nothing -- layoutCards() (app.js) reads the
-   class and computes width/left directly (2 columns' worth instead
-   of 1), since column width is only known at layout time, not in
-   CSS. Used by the LLDP/CDP/MNDP neighbor tables, which usually hold
-   more than one row and want the room. */
+/* .card-full-row itself sets nothing -- layoutCards() (app.js) reads
+   the class and computes width/left directly (the full container
+   width, stacked below whatever's already placed), since that's only
+   known at layout time, not in CSS. Used by the LLDP/CDP/MNDP
+   neighbor tables so they render as clean full-width rows, one after
+   another, instead of interleaving with the narrow cards around
+   them. */
 
 /* Utility pages with one or two data-heavy cards (Traffic, IP
    Scanner, ...) -- the dashboard's JS masonry (fixed ~22rem-minimum

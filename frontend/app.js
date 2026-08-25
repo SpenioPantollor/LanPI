@@ -1079,12 +1079,16 @@ document.getElementById("capture-stop-btn").addEventListener("click", stopCaptur
 // things like an ARP scan) -- only its vertical offset within its own
 // column does, and only its own column's cards shift as a result.
 //
-// A card marked .card-wide (the LLDP/CDP/MNDP neighbor tables, which
-// usually hold more than one row and want the room -- user-requested
-// 2026-08-25) spans 2 columns instead of 1: it takes the current
-// round-robin position and the next, and advances past both. Falls
-// back to a normal 1-column card when there's only 1 column to begin
-// with (narrow viewport) -- nothing to span into.
+// A card marked .card-full-row (the LLDP/CDP/MNDP neighbor tables --
+// user-requested 2026-08-25, superseding an earlier 2-column-span
+// attempt the same day that just looked messy once it wrapped between
+// narrow columns) takes the full container width instead of one
+// column, stacking below whichever column is currently tallest, and
+// resets every column back to that same new height -- the next
+// (normal, 1-column) card then starts a fresh round-robin from
+// column 0. This is what makes 3 of these in a row (LLDP, CDP, MNDP)
+// render as 3 clean full-width rows stacked one after another,
+// instead of interleaving with the narrow cards around them.
 function layoutCards() {
   const container = document.querySelector("main");
   const cards = Array.from(container.querySelectorAll(".card"));
@@ -1107,28 +1111,22 @@ function layoutCards() {
   const colHeights = new Array(columns).fill(0);
   let nextCol = 0;
   cards.forEach((card) => {
-    const wantsWide = card.classList.contains("card-wide") && columns >= 2;
-    const span = wantsWide ? 2 : 1;
-    let startCol = nextCol % columns;
-    if (span === 2 && startCol === columns - 1) {
-      startCol = 0; // don't let a 2-wide card overflow past the last column
+    if (card.classList.contains("card-full-row")) {
+      const top = Math.max(...colHeights);
+      card.style.width = `${containerWidth}px`;
+      card.style.left = "0px";
+      card.style.top = `${top}px`;
+      colHeights.fill(top + card.offsetHeight + gap);
+      nextCol = 0;
+      return;
     }
 
-    if (span === 1) {
-      card.style.width = `${colWidth}px`;
-      card.style.left = `${startCol * (colWidth + gap)}px`;
-      card.style.top = `${colHeights[startCol]}px`;
-      colHeights[startCol] += card.offsetHeight + gap;
-    } else {
-      const top = Math.max(colHeights[startCol], colHeights[startCol + 1]);
-      card.style.width = `${colWidth * 2 + gap}px`;
-      card.style.left = `${startCol * (colWidth + gap)}px`;
-      card.style.top = `${top}px`;
-      const newHeight = top + card.offsetHeight + gap;
-      colHeights[startCol] = newHeight;
-      colHeights[startCol + 1] = newHeight;
-    }
-    nextCol = startCol + span;
+    const col = nextCol % columns;
+    card.style.width = `${colWidth}px`;
+    card.style.left = `${col * (colWidth + gap)}px`;
+    card.style.top = `${colHeights[col]}px`;
+    colHeights[col] += card.offsetHeight + gap;
+    nextCol = col + 1;
   });
 
   container.style.height = `${Math.max(...colHeights) - gap}px`;
