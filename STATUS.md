@@ -227,15 +227,23 @@ Also this session: checked whether PROFINET DCP or LLDP can already
 surface a PLC's exact model/firmware without S7comm. DCP cannot (its
 Device Properties blocks carry a vendor/device *type* string like
 "S7-1200" and numeric vendor/device IDs, not a firmware version or
-exact order number). LLDP theoretically could (many industrial
-devices put exactly this in the System Description TLV) but a live
-`tcpdump` filtered to the real S7-1200's MAC, run twice (8s then 35s),
-saw **zero** LLDP frames from it -- LLDP's "nearest bridge" multicast
-scope (`01:80:c2:00:00:0e`) often isn't forwarded past one switch hop,
-unlike PROFINET DCP's own multicast group, so a PLC not directly
-link-adjacent to eth0 can be invisible to LLDP while still answering
-DCP. This is also what surfaced the LLDP single-neighbor-cache issue,
-fixed the same day (below).
+exact order number). **LLDP can, and does** -- corrected after the
+fix below: an earlier live `tcpdump` filtered to the S7-1200's MAC
+(as reported by DCP, `...8d:ef`) saw zero LLDP frames, which looked
+like the PLC wasn't sending LLDP at all. After the multi-neighbor fix
+below, the real LLDP data showed the PLC sends from a *different*
+MAC (`...8d:f0`, its `X1 P1` physical port -- a separate logical
+interface from the one DCP reported) -- the earlier "zero LLDP
+frames" finding was an artifact of filtering on the wrong MAC, not a
+real limitation. Its actual `system_description` TLV reads
+`"Siemens, SIMATIC S7, CPU-1200, 6ES7 214-1HG40-0XB0, HW: 14, FW:
+V.4.6.1, S V-P4EA3762"` -- exact order number, hardware revision,
+firmware version, *and* serial number in one field, including the
+serial number S7comm's SZL 0x001c request couldn't get from this CPU
+(see above). This is also what surfaced the LLDP single-neighbor-cache
+issue, fixed the same day (below) -- and confirmed fixed: 3 distinct
+neighbors (this PLC plus two NICs on an "AICADAS" PC) now list
+simultaneously with no flickering.
 
 **LLDP multi-neighbor support added 2026-08-25**, same day it was
 found. `backend/discovery/lldp.py`'s `_neighbors` was
